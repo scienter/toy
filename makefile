@@ -1,0 +1,53 @@
+EXEC = show
+CC = /opt/ompi/5.0.6/bin/mpicxx
+OBJS = main.o findparam.o parameterSetting.o boundary.o ##selfseed.o clean.o loadBeam.o saveParticleHDF.o saveFieldHDF.o updateK_quadG.o particlePush.o solveField.o rearrangeParticles.o fieldShareZ.o updateTotalEnergy.o loadSeed.o twiss.o wakeField.o chicane.o saveFile.o restoreDumpHDF.o
+
+INCL = constants.h mesh.h particle.h
+
+
+#=======================================================================
+# compile & link option (vectorization optimization)
+#=======================================================================
+
+# default optimization
+OPT = -O3 -march=native -mtune=native
+
+# vectorization activation + 부동소수점 연산 안전하게 빠르게
+VEC_FLAGS = -ffast-math \
+            -fassociative-math \
+            -fno-signed-zeros \
+            -fno-trapping-math
+
+
+
+#-------- for beam server ----------# 
+CFLAGS   = $(OPT) $(VEC_FLAGS) $(VEC_REPORT) \
+           -I/opt/hdf5/1.14.5/include \
+           -I/opt/fftw/3.3.10/include \
+           -I/opt/gsl/2.8/include \
+           -Wall -Wextra -pedantic
+
+LDFLAGS  = -L/opt/hdf5/1.14.5/lib \
+           -L/opt/fftw/3.3.10/lib \
+           -L/opt/gsl/2.8/lib \
+           -lhdf5 -lz -lfftw3 -lgsl -lgslcblas -lm
+
+
+
+#=======================================================================
+# rules
+#=======================================================================
+
+all: $(EXEC)
+
+$(EXEC): $(OBJS)
+	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+
+%.o: %.cpp $(INCL)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f *.o $(EXEC) *.mod core *~
+
+.PHONY: all clean
+
