@@ -2,6 +2,7 @@
 #include <iostream>
 #include <mpi.h>
 #include <complex>
+#include <vector>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_linalg.h>
@@ -13,8 +14,11 @@
 #include "mesh.h"
 #include "constants.h"
 
+std::vector<cplx> complexMemoryFlat(int harmony, int nz, int nx, int ny);
+
 void boundary(Domain *D)
 {
+
    int myrank=0, nTasks=1;
    //MPI_Status status;
 
@@ -22,38 +26,14 @@ void boundary(Domain *D)
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);     
 
 
-   //isliceN=D->sliceN;
+   D->subSliceN = D->sliceN;
 
-/*
-   // finding minI, maxI, and minmax
-   N=D->nx*D->ny*D->numHarmony;
-   D->minmax=(int *)malloc((nTasks+1)*sizeof(int ));
-
-   remain=sliceN%nTasks;
-   sub = sliceN/nTasks;
-   D->minmax[0]=0;
-   for(rank=0; rank<nTasks; rank++) {
-      if(rank<remain) tmpInt=sub+1;
-      else            tmpInt=sub;
-      D->minmax[rank+1]=tmpInt+D->minmax[rank];
-   }
-   MPI_Bcast(D->minmax,nTasks+1,MPI_INT,0,MPI_COMM_WORLD);
-   D->minI=D->minmax[myrank];
-   D->maxI=D->minmax[myrank+1];
-   D->subSliceN=D->maxI-D->minI;
-
-   D->startI = 1;
-   D->endI = D->subSliceN+1;
-   MPI_Barrier(MPI_COMM_WORLD);
-   printf("myrank=%d,minI=%d,maxI=%d,subSliceN=%d\n",myrank,D->minI,D->maxI,D->subSliceN);
-  
    // Field memory setting
-   D->Ux=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->Uy=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->Ucx=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->Ucy=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->ScUx=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->ScUy=complexMemory3Asign(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+   D->Ux=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+   D->Uy=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+   D->ScUx=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+   D->ScUy=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+/*
    D->totalEnergyX=(double **)malloc(D->maxStep*sizeof(double *));
    D->totalEnergyY=(double **)malloc(D->maxStep*sizeof(double *));
    for(i=0; i<D->maxStep; i++) {
@@ -77,30 +57,24 @@ void boundary(Domain *D)
          for(l=0; l<D->SCLmode; l++)
             for(m=0; m<D->SCFmode; m++)
                D->Ez[i][j][l][m]=0.0+I*0.0;
+*/
 
-
-
-   // Memory for shift
-   D->shift=0.0;
 
    // setting up particle's pointer
-   LL=D->loadList;
-   s=0; 
-   while(LL->next) {
-     totalCnt=LL->numBeamlet*LL->numInBeamlet;
-     LL->totalCnt=totalCnt;
-     LL=LL->next;
-     s++;
-   }
+   //LL=D->loadList;
+   //s=0; 
+   //while(LL->next) {
+   //  totalCnt=LL->numBeamlet*LL->numInBeamlet;
+   //  LL->totalCnt=totalCnt;
+   //  LL=LL->next;
+   //  s++;
+   //}
 
-   D->particle=(Particle *)malloc((D->subSliceN+2)*sizeof(Particle ));
-   for(i=0; i<D->subSliceN+2; i++) {
-      D->particle[i].head = (ptclHead **)malloc(sizeof(ptclHead *));
-      for(s=0; s<D->nSpecies; s++) {
-         D->particle[i].head[s] = (ptclHead *)malloc(sizeof(ptclHead ));
-         D->particle[i].head[s]->pt=NULL;
-      }
+   D->particle.resize(D->subSliceN+2);
+   for(auto& p : D->particle) {
+      p.head.resize(D->nSpecies);
    }
+/*
    D->avePx=0.0;
    D->avePy=0.0;
    D->aveGam=D->gamma0;
@@ -152,6 +126,19 @@ void boundary(Domain *D)
    D->ue=0;
 */
 }
+
+std::vector<cplx> complexMemoryFlat(int harmony, int nz, int nx, int ny)
+{
+   int total = harmony * nz * nx * ny;
+
+   // 가장 추천: 값 초기화하면서 할당
+   //return std::vector<cplx>(total);  // C++11 이후 default-init (complex는 0)
+   // 또는 명시적으로 0 초기화
+   return std::vector<cplx>(total, cplx{0.0, 0.0});
+}
+
+
+
 
 /*
 double complex **complexMemoryAsign(int harmony,int nx,int ny)

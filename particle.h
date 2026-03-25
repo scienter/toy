@@ -1,40 +1,53 @@
-#define Electron	1
+#ifndef PARTICLE_H
+#define PARTICLE_H
 
 
-typedef struct _ptclHead  {
-    struct _ptclList *pt;
-}   ptclHead;
+#include <vector>
 
-typedef struct _ptclList  {
-    double *x,*y,*px,*py;
-    double *theta,*gamma;
-    double weight;
-    int index,core;
-    struct _ptclList *next;
-} ptclList;
+enum class BeamMode {
+    Unknown    = 0,
+    Polygon    = 1,
+    Gaussian   = 2
+    // 필요하면 다른 모드 추가
+};
 
-typedef struct _LoadList  {
-   int type,species,index;
-   int znodes,Enodes,EmitNodes,ESnodes,YOffNodes,PyOffNodes;
-   double *zpoint,*zn;
-   double *Epoint,*En;
-   double *ESpoint,*ESn;
-   double *EmitPoint,*EmitN;
-   double *YOffPoint,*YOffN;
-   double *PyOffPoint,*PyOffN;
-  
-   double *particle; 
-   double energy,peakCurrent,sigmaR,spread,area,Echirp;
-   double sigX,sigY,emitX,emitY,betaX,betaY,alphaX,alphaY;
-	double sigZ,gaussPower,posZ;
-	double shiftY;
-   int numInBeamlet;  	// For particles in one slice not a big slice.
-   int numBeamlet;	// Number of beamlets in one big slice.
-   int totalCnt,subCnt,subCntRef,minN,maxN;
-	int transFlat;
-   int noiseONOFF,randONOFF;
-   double gamma0,aveGam;
+struct ptclHead  {
+    struct ptclList *pt = nullptr;
+};
 
-   struct _LoadList *next;
-} LoadList;
+struct Particle 
+{
+   std::vector<ptclHead*> head; // species 개수만큼 ptclHead* 를 가짐
+};
+
+
+struct ptclList  {
+   std::vector<double> x;
+   std::vector<double> y;
+   std::vector<double> px;
+   std::vector<double> py;
+   std::vector<double> theta;
+   std::vector<double> gamma;
+   double weight;
+   int index,core;
+   struct ptclList *next = nullptr;
+};
+
+struct LoadList  {
+   BeamMode type = BeamMode::Unknown;
+	int index=0;
+
+
+   int numInBeamlet;    // For particles in one slice not a big slice.
+   int numBeamlet;   // Number of beamlets in one big slice.
+
+
+   // For Polygon mode
+   int znodes = 0;
+   std::vector<double> zpoint;
+   std::vector<double> zn;
+
+};
    
+
+#endif
