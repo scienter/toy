@@ -25,8 +25,12 @@ void boundary(Domain *D)
    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);     
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);     
 
-
+   //Static
    D->subSliceN = D->sliceN;
+   D->minI = 0;
+   D->maxI = 1;
+
+
 
    // Field memory setting
    D->Ux=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);

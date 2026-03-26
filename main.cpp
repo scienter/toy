@@ -5,6 +5,7 @@
 #include <ctime>         // time
 #include <complex>       // std::complex
 #include <string>
+#include <iostream>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -12,6 +13,8 @@
 
 int main(int argc, char *argv[])
 {
+   int iteration,s=0;
+ 
    MPI_Init(&argc,&argv);
     
    int myrank=0, nTasks=1;
@@ -21,6 +24,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    Domain D{};     // zero-initialization
+   LoadList LL{};
 
    // 입력 파일이 제대로 주어졌는지 확인
    if (argc < 2)  {
@@ -33,6 +37,28 @@ int main(int argc, char *argv[])
 
    parameterSetting(&D,argv[1]);
 
+   boundary(&D);
+
+   if(argc>=3) {
+      iteration=atoi(argv[2]);
+
+
+   } else {
+
+      //loading  beam
+      iteration=0;
+      s=0;
+      for (auto& LL : D.loadList) {
+         loadBeam(&D,LL,s,iteration);
+         s++;
+      }
+
+
+   }
+
+   for (size_t s=0; s<D.loadList.size(); ++s) {
+      saveParticlesToTxt(D, s, "test");
+   }
 
 
    MPI_Finalize();

@@ -32,6 +32,7 @@ double randomV()
 OperationMode whatOperMode(char *str);
 BeamMode whatBeamMode(char *str);
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input);
+bool whatONOFF(char *str);
 
 void parameterSetting(Domain *D,const char *input)
 {
@@ -66,9 +67,12 @@ void parameterSetting(Domain *D,const char *input)
       fail=true;  
    }
 
+   if(FindParameters("Domain",1,"lambdaUs_in_iteration",input,str)) 
+      D->numLambdaU=atoi(str);
+   else  D->numLambdaU=1;
+
    if(FindParameters("Domain",1,"num_harmony",input,str)) D->numHarmony=atoi(str);
    else { D->numHarmony=1; }
-
 	D->harmony = new int[D->numHarmony];
    for(i=0; i<D->numHarmony; i++) {
       std::string param_name = "harmony" + std::to_string(i);
@@ -80,15 +84,29 @@ void parameterSetting(Domain *D,const char *input)
       }
    }
 
+   //Domain parameter setting
+   if(FindParameters("Domain",1,"minZ",input,str)) D->minZ=atof(str)*1e-6;
+   else  { printf("In [Domain], minZ=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"maxZ",input,str)) D->maxZ=atof(str)*1e-6;
+   else  { printf("In [Domain], maxZ=? [um].\n");  fail=true;  }
 
+
+
+   //Electron beam
+   if(FindParameters("Domain",1,"slices_in_bucket",input,str)) D->numSlice=atoi(str);
+   else  { 
+      std::cout << "In [Domain], slices_in_bucket=? [ea].\n"; 
+      fail=true;
+   }
+   if(D->numSlice<D->numLambdaU) { 
+      printf("In [Domain], check the condition 'slices_in_bucket(=%d) >= lambdaUs_in_itertation(=%d).\n",D->numSlice,D->numLambdaU);
+      fail=true;
+   }
 
    // Beam parameter setting
    while(findBeamLoadParameters(rank, LL, D,input))
    {
       D->loadList.push_back(LL);
-      std::cout << "loadType=" << static_cast<int>(LL.type) 
-                << "rank=" << rank    
-                << "\n";
       rank ++;
       LL = LoadList {};
    }
@@ -102,6 +120,13 @@ void parameterSetting(Domain *D,const char *input)
 
    D->ks=energy*2*M_PI/(plankH*velocityC);
    D->lambda0=2*M_PI/D->ks;
+
+   if(D->mode==OperationMode::Static) {
+      D->minZ=-0.5*D->lambda0*D->numSlice;
+      D->maxZ=0.5*D->lambda0*D->numSlice;
+   }
+
+
 
    if (D->mode == OperationMode::Static) D->sliceN=1;
    if (myrank==0) { 
@@ -134,11 +159,20 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
    else LL.type=BeamMode::Unknown;
 
    if (LL.type != BeamMode::Unknown) {
+      if(FindParameters("EBeam",1,"beam_energy",input,str)) LL.energy=atof(str);
+      else  { printf("In [EBeam], beam_energy=? [MeV].\n"); fail=true;  }
+      if(FindParameters("EBeam",1,"energy_spread",input,str)) LL.spread=atof(str)*0.01;
+      else  { printf("In [EBeam], energy_spread=? [%%].\n"); fail=true;  }
+      if(FindParameters("EBeam",1,"peak_current",input,str)) LL.peakCurrent=atof(str);
+      else  { printf("In [EBeam], peak_current=? [A].\n"); fail=true;  }
+      if(FindParameters("EBeam",1,"noise_ONOFF",input,str)) LL.noiseONOFF=whatONOFF(str);
+      else  { printf("In [EBeam], noise_ONOFF=? [ON or OFF].\n"); fail=true;  }
+
+
       if(FindParameters("EBeam",1,"beamlets_in_bucket",input,str)) LL.numBeamlet=atoi(str);
       else  { printf("In [EBeam], beamlets_in_bucket=? [ea/bucket].\n"); fail=true;  }
       if(FindParameters("EBeam",1,"number_in_beamlet",input,str)) LL.numInBeamlet=atoi(str);
       else  { printf("In [EBeam], number_in_beamlet=? [ea/beamlet].\n"); fail=true;  }
-
 
       switch (LL.type)  {
       case BeamMode::Unknown:
@@ -189,8 +223,6 @@ BeamMode whatBeamMode(char *str)
       return BeamMode::Unknown;
 }
 
-
-
 OperationMode whatOperMode(char *str)
 {
    //if (!str || !*str) {
@@ -204,4 +236,12 @@ OperationMode whatOperMode(char *str)
       return OperationMode::Twiss;
    else 
       return OperationMode::Unknown;
+}
+
+bool whatONOFF(char *str)
+{
+   if (strstr(str,"ON") != nullptr)
+      return true;
+   else
+      return false;
 }
