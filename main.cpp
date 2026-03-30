@@ -53,11 +53,34 @@ int main(int argc, char *argv[])
          s++;
       }
 
-
    }
 
+   while(iteration<D.maxStep) 
+   {
+      updateK_quadG(&D,iteration,0);
+
+      updateK_quadG(&D,iteration,0.5);
+
+      
+      if(D.driftFlag==false) push_theta_gamma(&D,iteration);
+      else {
+         std::cout << "iteration=" << iteration
+                   << ", driftON"
+                   << std::endl;
+      }
+
+
+      if(iteration%10==0) {
+         if(myrank==0) 
+            printf("iteration=%d, z=%g\n",iteration,iteration*D.dz);
+      }
+      iteration++;
+   }
+
+
+
    for (size_t s=0; s<D.loadList.size(); ++s) {
-      saveParticlesToTxt(D, s, "test");
+      saveParticlesToTxt(D, s, "particles");
    }
 
 

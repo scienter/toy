@@ -90,11 +90,13 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       double eNumbers=remacro*numInBeamlet;
       if(eNumbers<10) eNumbers=10;  
 
-      unsigned int totalParticles = beamlets * numInBeamlet;
+      size_t totalParticles = beamlets * numInBeamlet;
       auto New = std::make_unique<ptclList>();
 
+      // head[s] is nullptr, the generate new.
       if (D.particle[i].head[s] == nullptr) {
-         continue;
+         D.particle[i].head[s] = new ptclHead{};
+         D.particle[i].head[s]->pt = nullptr;
       }
 
       New->next = D.particle[i].head[s]->pt;
@@ -111,7 +113,7 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       New->core.resize(totalParticles);
 
       unsigned long ptclIdx=0;
-      for(int b=0; b<beamlets; ++b)  {
+      for(unsigned int b=0; b<beamlets; ++b)  {
          gsl_qrng_get(q1,v1);
          double th=v1[0];           
          double gam= (v1[1]==0.0) ? 1e-4 : v1[1];
@@ -120,7 +122,6 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
          double theta0=th*(dPhi-(numInBeamlet-1.0)/numInBeamlet*1.0 * 2*M_PI);
          //theta0=(th)*(2*M_PI-(numInBeamlet-1.0)/(numInBeamlet*1.0)*2*M_PI);
          //theta0=(th)*(dPhi);  
-    
          for(int n=0; n<numInBeamlet; ++n)  { 
             unsigned long idx = ptclIdx++;
       

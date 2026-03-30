@@ -16,15 +16,18 @@ void saveParticlesToTxt(const Domain &D, int species, const std::string& fileNam
    out << "# x            y            px           py";
    out << "           theta        gamma        weight\n";
 
-   for (unsigned int i = 0; i < D.particle.size(); ++i) 
+   for (size_t i = 0; i < D.particle.size(); ++i) 
    {
-      ptclList* p = D.particle[i].head[species]->pt;
-      
-      if (p == nullptr) 
-         continue;
+      if (species >= static_cast<int>(D.particle[i].head.size()) || 
+            D.particle[i].head[species] == nullptr) {
+            continue;
+      }
 
-      while (p != nullptr) 
+      ptclList* p = D.particle[i].head[species]->pt;      
+      while (p!= nullptr) 
       {
+         std::cout << "i " << i << "N=" << D.particle.size() << std::endl;
+          
          size_t nParticles = p->x.size();
 
          for (size_t n = 0; n < nParticles; ++n) 
@@ -37,8 +40,10 @@ void saveParticlesToTxt(const Domain &D, int species, const std::string& fileNam
                 << std::setw(12) << p->gamma[n] << " "
                 << std::setw(12) << p->weight << "\n";
          }
+         
          p = p->next;   // 다음 ptclList 노드로 이동
-      }
+      }      
+      
    }
 
    out.close();

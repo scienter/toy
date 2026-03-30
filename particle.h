@@ -41,7 +41,7 @@ struct LoadList  {
    int numBeamlet;   // Number of beamlets in one big slice.
    bool noiseONOFF, randONOFF;
    
-   double energy,spread;
+   double energy,spread,gamma0;
    double peakCurrent;
 
    // For Polygon mode

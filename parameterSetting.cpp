@@ -31,12 +31,15 @@ double randomV()
 
 OperationMode whatOperMode(char *str);
 BeamMode whatBeamMode(char *str);
+UndMode whatUndMode(char *str);
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input);
+bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *input);
 bool whatONOFF(char *str);
 
 void parameterSetting(Domain *D,const char *input)
 {
    LoadList LL{};
+   UndList UL{};
 
    int myrank=0, nTasks=1;
    //MPI_Status status;
@@ -45,7 +48,7 @@ void parameterSetting(Domain *D,const char *input)
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);     
 
    int i=0, rank=1;
-   double energy=0.0;
+   double photon_energy=0.0;
    bool fail = false;
    char str[100];
 
@@ -61,15 +64,23 @@ void parameterSetting(Domain *D,const char *input)
       cout << "in [Domain], mode=?  (static, time) \n";
       fail=true;  
    }
-   if(FindParameters("Domain",1,"photon_energy",input,str)) energy=atof(str);
+   if(FindParameters("Domain",1,"photon_energy",input,str)) photon_energy=atof(str);
    else  { 
       cout << "in [Domain], photon_energy=?  [eV] \n";
       fail=true;  
    }
+   D->ks=photon_energy*2*M_PI/(plankH*velocityC);
+   D->lambda0=2*M_PI/D->ks;
 
-   if(FindParameters("Domain",1,"lambdaUs_in_iteration",input,str)) 
-      D->numLambdaU=atoi(str);
-   else  D->numLambdaU=1;
+   //Save paratmeter setting
+   if(FindParameters("Save",1,"total_length",input,str)) D->Lz=atof(str);
+   else  { printf("In [Save], total_length=? [m].\n");  fail=true;  }
+
+   //Domain parameter setting
+   if(FindParameters("Domain",1,"minZ",input,str)) D->minZ=atof(str)*1e-6;
+   else  { printf("In [Domain], minZ=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"maxZ",input,str)) D->maxZ=atof(str)*1e-6;
+   else  { printf("In [Domain], maxZ=? [um].\n");  fail=true;  }
 
    if(FindParameters("Domain",1,"num_harmony",input,str)) D->numHarmony=atoi(str);
    else { D->numHarmony=1; }
@@ -78,18 +89,11 @@ void parameterSetting(Domain *D,const char *input)
       std::string param_name = "harmony" + std::to_string(i);
       char buf[100] = {};
       if(FindParameters("Domain",1,param_name.c_str(),input,buf)) D->harmony[i] = std::atoi(buf);
-      else  { 
-         std::cerr << "In [Domain], {} should be defined.\n";
-         fail=true; 
-      }
+      else  { std::cerr << "In [Domain], {} should be defined.\n"; fail=true; }
    }
 
-   //Domain parameter setting
-   if(FindParameters("Domain",1,"minZ",input,str)) D->minZ=atof(str)*1e-6;
-   else  { printf("In [Domain], minZ=? [um].\n");  fail=true;  }
-   if(FindParameters("Domain",1,"maxZ",input,str)) D->maxZ=atof(str)*1e-6;
-   else  { printf("In [Domain], maxZ=? [um].\n");  fail=true;  }
-
+   if(FindParameters("Domain",1,"lambdaUs_in_iteration",input,str)) D->numLambdaU=atoi(str);
+   else  D->numLambdaU=1;
 
 
    //Electron beam
@@ -104,6 +108,7 @@ void parameterSetting(Domain *D,const char *input)
    }
 
    // Beam parameter setting
+   rank=1;
    while(findBeamLoadParameters(rank, LL, D,input))
    {
       D->loadList.push_back(LL);
@@ -111,20 +116,40 @@ void parameterSetting(Domain *D,const char *input)
       LL = LoadList {};
    }
    D->nSpecies = rank-1;
-   std::cout << "nSpecies=" << D->nSpecies << "\n";
+   if(myrank==0) std::cout << "nSpecies=" << D->nSpecies << std::endl;
+   D->gamma0 = D->loadList[0].gamma0;
 
+   // Undulator parameter setting
+   rank=1;
+   while(findUndulatorLoadParameters(rank, UL, D,input))
+   {
+      D->undList.push_back(UL);
+      rank ++;
+      UL = UndList {};
+   }
+   D->nUnd = rank-1;
+  
+   UL = D->undList[0];
+   D->K0 = UL.K0[0];
+   D->ue = UL.ue;
+   D->K0_alpha = UL.K0_alpha;
+   D->undType = UL.type;
+   D->lambdaU = UL.lambdaU;
+   D->ku = 2.0*M_PI/UL.lambdaU;
 
-   // extra setting
+   // Extra setting
    D->nx=1;
    D->ny=1;
 
-   D->ks=energy*2*M_PI/(plankH*velocityC);
-   D->lambda0=2*M_PI/D->ks;
 
    if(D->mode==OperationMode::Static) {
       D->minZ=-0.5*D->lambda0*D->numSlice;
       D->maxZ=0.5*D->lambda0*D->numSlice;
    }
+   D->lambdaU=D->undList[0].lambdaU;
+   D->dz = D->lambdaU*D->numLambdaU;
+   D->maxStep=(int)(D->Lz/D->dz+1);
+
 
 
 
@@ -134,6 +159,8 @@ void parameterSetting(Domain *D,const char *input)
            << ", numHarmony=" << D->numHarmony 
            << ", opermode=" << static_cast<int>(D->mode)
            << ", sliceN=" << D->sliceN
+           << ", lambdaU=" << D->lambdaU
+           << ", dz=" << D->dz
            << "\n"; 
    }
 
@@ -143,6 +170,96 @@ void parameterSetting(Domain *D,const char *input)
       std::exit(1);
    }
 }
+
+bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *input)
+{
+   char name[100], str[100];
+   bool fail = false;
+   int quadTaperId=10000;
+
+   int myrank, nTasks;
+   MPI_Status status;
+
+   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   if(FindParameters("Undulator",rank,"undulator_type",input,str)) UL.type = whatUndMode(str);
+   else UL.type=UndMode::Unknown;
+   if(FindParameters("Undulator",rank,"numbers",input,str)) UL.numbers=atoi(str);
+   else  UL.numbers=0;
+   if(FindParameters("Undulator",rank,"in_air",input,str)) UL.air=whatONOFF(str);
+   else  UL.air=false;
+
+
+   if (UL.type != UndMode::Unknown) {
+      if(FindParameters("Undulator",rank,"lambdaU",input,str)) UL.lambdaU=atof(str)*0.01;
+      else  { printf("in [Undulator], lambdaU=? [cm]\n");  fail=true;   }
+      if(UL.numbers>0) {
+	      UL.unitStart.assign(UL.numbers,0.0);
+	      UL.unitEnd.assign(UL.numbers,0.0);
+	      UL.undStart.assign(UL.numbers,0.0);
+	      UL.undEnd.assign(UL.numbers,0.0);
+	      UL.K0.assign(UL.numbers,0.0);
+         
+         if(FindParameters("Undulator",rank,"unit_start",input,str)) UL.unitStart[0]=atof(str);
+         else { printf("In [Undulator], unit_start = ? [m]\n");  fail=true; }
+         if(FindParameters("Undulator",rank,"unit_end",input,str)) UL.unitEnd[0]=atof(str);
+         else { printf("In [Undulator], unit_end = ? [m]\n");  fail=true; }
+         if(FindParameters("Undulator",rank,"undulator_start",input,str)) UL.undStart[0]=atof(str);
+         else { printf("In [Undulator], undulator_start = ? [m]\n");  fail=true; }
+         if(FindParameters("Undulator",rank,"undulator_end",input,str)) UL.undEnd[0]=atof(str);
+         else { printf("In [Undulator], undulator_end = ? [m]\n");  fail=true; }
+         if(FindParameters("Undulator",rank,"linear_taper",input,str)) UL.linTaper=atof(str)/std::sqrt(2.0);
+         else UL.linTaper = 0.0;
+         if(FindParameters("Undulator",rank,"quad_taper",input,str)) UL.quadTaper=atof(str)/std::sqrt(2.0);
+         else UL.quadTaper = 0.0;
+         if(FindParameters("Undulator",rank,"slope_K",input,str)) UL.slopeK=atof(str)/std::sqrt(2.0);
+         else UL.slopeK = 0.0;
+         if(FindParameters("Undulator",rank,"quad_taper_start_index",input,str)) quadTaperId = atoi(str);
+         else  quadTaperId=30000;
+
+         if(FindParameters("Undulator",rank,"polarity",input,str)) UL.ue=atof(str);
+         else { printf("in [Undulator], polarity = ? [-1~1]\n");  fail=true;   }
+         if(FindParameters("Undulator",rank,"K0_alpha",input,str)) UL.K0_alpha=atoi(str);
+         else  UL.K0_alpha=1;
+         double ku=2*M_PI/UL.lambdaU;
+         if(FindParameters("Undulator",rank,"K0",input,str)) UL.K0[0]=atof(str);
+         else { UL.K0[0]=std::sqrt((4*D->gamma0*D->gamma0*ku/D->ks-2)/(1.0+UL.ue*UL.ue));
+}
+
+         double K0=UL.K0[0];
+         double unitLength=UL.unitEnd[0]-UL.unitStart[0];
+         double undStart=UL.undStart[0]-UL.unitStart[0];
+         double undLength=UL.undEnd[0]-UL.undStart[0];
+
+         for(size_t i=1; i<UL.numbers; ++i)  {
+            UL.unitStart[i]=UL.unitEnd[i-1];
+            UL.unitEnd[i]=UL.unitStart[i]+unitLength;
+            UL.undStart[i]=UL.unitStart[i]+undStart;
+            UL.undEnd[i]=UL.undStart[i]+undLength;
+            if(i >= quadTaperId)
+               UL.K0[i]=K0+i*UL.linTaper+(i-quadTaperId)*(i-quadTaperId)*UL.quadTaper;
+            else
+               UL.K0[i]=K0+i*UL.linTaper;
+         }
+
+
+         
+      }
+
+   }
+   
+   return (UL.type != UndMode::Unknown);
+
+   if(fail) {
+      MPI_Finalize();
+      std::exit(1);
+   }
+}
+
+
+
+
 
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
 {
@@ -201,6 +318,7 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
         // 예: LL.sigma = ... 등
          break;
       }
+      LL.gamma0 = LL.energy/mc2 + 1.0;
    }
 
    return (LL.type != BeamMode::Unknown);
@@ -212,6 +330,15 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
 
 }
 
+UndMode whatUndMode(char *str)
+{
+   if (strstr(str,"Normal") != nullptr)
+      return UndMode::Normal;
+   else if (strstr(str,"AppleX") != nullptr)
+      return UndMode::AppleX;
+   else 
+      return UndMode::Unknown;
+}
 
 BeamMode whatBeamMode(char *str)
 {

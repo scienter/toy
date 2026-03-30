@@ -77,6 +77,13 @@ void boundary(Domain *D)
    D->particle.resize(D->subSliceN+2);
    for(auto& p : D->particle) {
       p.head.resize(D->nSpecies);
+      for(size_t sp = 0; sp < p.head.size(); ++sp) {
+        if (p.head[sp] == nullptr) {
+            p.head[sp] = new ptclHead{};
+            p.head[sp]->pt = nullptr;
+        }
+    }
+
    }
 /*
    D->avePx=0.0;
