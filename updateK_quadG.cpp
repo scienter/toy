@@ -58,7 +58,7 @@ void updateK_quadG(Domain *D,int iteration,double half)
    if(inUnd==false && inInter==false) airPosition=true;
    if(inUnd==true) D->currentFlag=true;
    if(airPosition==true) {
-      D->ku=0;       // for drift calculation
+      D->ku=0.0;       // for drift calculation
       D->driftFlag=true;
       D->currentFlag=false;
    }

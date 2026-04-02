@@ -14,7 +14,8 @@
 #include "mesh.h"
 #include "constants.h"
 
-std::vector<cplx> complexMemoryFlat(int harmony, int nz, int nx, int ny);
+std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, int size);
+std::vector<std::vector<double>> doubleMemoryFlat(int size1, int size2);
 
 void boundary(Domain *D)
 {
@@ -33,17 +34,15 @@ void boundary(Domain *D)
 
 
    // Field memory setting
-   D->Ux=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->Uy=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->ScUx=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
-   D->ScUy=complexMemoryFlat(D->numHarmony,D->subSliceN+2,D->nx,D->ny);
+   D->Ux=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
+   D->Uy=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
+   D->ScUx=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
+   D->ScUy=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
+   D->Ez=complexMemoryFlat(D->SCLmode,(D->subSliceN+2)*D->nx);
+   
+   D->totalEnergyX=doubleMemoryFlat(D->maxStep,D->numHarmony);
+   D->totalEnergyY=doubleMemoryFlat(D->maxStep,D->numHarmony);
 /*
-   D->totalEnergyX=(double **)malloc(D->maxStep*sizeof(double *));
-   D->totalEnergyY=(double **)malloc(D->maxStep*sizeof(double *));
-   for(i=0; i<D->maxStep; i++) {
-      D->totalEnergyX[i]=(double *)malloc(D->numHarmony*sizeof(double ));
-      D->totalEnergyY[i]=(double *)malloc(D->numHarmony*sizeof(double ));
-   }
 
    // space charge
    nz = D->subSliceN+2;
@@ -85,6 +84,24 @@ void boundary(Domain *D)
     }
 
    }
+
+   // Bessel Table
+   D->BesselMax = D->harmony[D->numHarmony - 1] * 2.0 * M_PI;
+   D->dBessel = D->BesselMax / static_cast<double>(D->bn);
+   D->BesselMaxOrder = (D->harmony[D->numHarmony - 1] + 1) / 2 + 1;
+
+   // 2차원 vector로 변경 (메모리 관리 자동)
+   D->BesselJ.resize(D->bn);                    // bn 개의 행
+   for (int i = 0; i < D->bn; ++i)
+      D->BesselJ[i].resize(D->BesselMaxOrder); // 각 행에 BesselMaxOrder 개의 열
+
+   for (int i = 0; i < D->bn; ++i) {
+      double xi = D->dBessel * i;
+      for (int j = 0; j < D->BesselMaxOrder; ++j) {
+         D->BesselJ[i][j] = gsl_sf_bessel_Jn(j, xi);
+      }
+   }
+
 /*
    D->avePx=0.0;
    D->avePy=0.0;
@@ -105,18 +122,6 @@ void boundary(Domain *D)
    D->twsEmitY = (double *)malloc((D->maxStep+1)*sizeof(double ));
    D->twsG = (double *)malloc((D->maxStep+1)*sizeof(double ));
 
-   // Bessel Table
-   D->BesselMax = D->harmony[D->numHarmony-1]*2*M_PI;
-   D->dBessel = D->BesselMax/(1.0*D->bn);
-   D->BesselMaxOrder = (D->harmony[D->numHarmony-1]+1)/2+1;
-   D->BesselJ = (double **)malloc(D->bn*sizeof(double *));
-   for(i=0; i<D->bn; i++) 
-      D->BesselJ[i] = (double *)malloc(D->BesselMaxOrder*sizeof(double ));
-   for(i=0; i<D->bn; i++) {
-      xi = D->dBessel*i;
-      for(j=0; j<D->BesselMaxOrder; j++) 
-         D->BesselJ[i][j]=gsl_sf_bessel_Jn(j,xi);
-   }
 
    // define Matrix Ma
    gsl_complex g;
@@ -138,14 +143,23 @@ void boundary(Domain *D)
 */
 }
 
-std::vector<cplx> complexMemoryFlat(int harmony, int nz, int nx, int ny)
+std::vector<std::vector<double>> doubleMemoryFlat(int size1, int size2)
 {
-   int total = harmony * nz * nx * ny;
+   std::vector<std::vector<double>> field(size1);
+   for(int h=0; h<size1; ++h) 
+      field[h].resize(size2);
 
-   // 가장 추천: 값 초기화하면서 할당
-   //return std::vector<cplx>(total);  // C++11 이후 default-init (complex는 0)
-   // 또는 명시적으로 0 초기화
-   return std::vector<cplx>(total, cplx{0.0, 0.0});
+   return field;
+}
+
+
+std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, int size)
+{
+   std::vector<std::vector<cplx>> field(harmony);
+   for(int h=0; h<harmony; ++h) 
+      field[h].resize(size, cplx{0.0,0.0});
+
+   return field;
 }
 
 

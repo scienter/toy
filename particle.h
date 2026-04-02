@@ -44,6 +44,10 @@ struct LoadList  {
    double energy,spread,gamma0;
    double peakCurrent;
 
+   double emitX,emitY;
+   double alphaX,alphaY;
+   double betaX,betaY;
+
    // For Polygon mode
    int znodes = 0;
    std::vector<double> zpoint;

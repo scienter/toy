@@ -44,6 +44,9 @@ int main(int argc, char *argv[])
 
 
    } else {
+      //Create "totalEnergy" file
+      FILE *out = fopen("totalEnergy", "w");      
+      fclose(out);
 
       //loading  beam
       iteration=0;
@@ -55,20 +58,37 @@ int main(int argc, char *argv[])
 
    }
 
+
+
    while(iteration<D.maxStep) 
    {
+      if(iteration%20==0) {
+         for (size_t s=0; s<D.loadList.size(); ++s) {
+            std::string fileName = std::to_string(s) + "Particle" + std::to_string(iteration);
+            saveParticlesToTxt(D, s, fileName);
+         }
+      }
+
+      // Update Total Energy
+      updateTotalEnergy(&D,iteration);
+
+
+      solveField(&D,iteration);
+      //std::cout << "iteration=" << iteration << "after solveField" << std::endl;
+
       updateK_quadG(&D,iteration,0);
+      //std::cout << "iteration=" << iteration << "after 1st updateK" << std::endl;
 
       updateK_quadG(&D,iteration,0.5);
+      //std::cout << "iteration=" << iteration << "after 2nd updateK" << std::endl;
 
-      
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
       else {
          std::cout << "iteration=" << iteration
                    << ", driftON"
                    << std::endl;
       }
-
+      //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
 
       if(iteration%10==0) {
          if(myrank==0) 
@@ -79,9 +99,6 @@ int main(int argc, char *argv[])
 
 
 
-   for (size_t s=0; s<D.loadList.size(); ++s) {
-      saveParticlesToTxt(D, s, "particles");
-   }
 
 
    MPI_Finalize();

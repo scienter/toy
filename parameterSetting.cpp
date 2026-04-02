@@ -35,11 +35,13 @@ UndMode whatUndMode(char *str);
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input);
 bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *input);
 bool whatONOFF(char *str);
+int findQuadLoadParameters(int rank,QuadList& QD,Domain *D,const char *input);
 
 void parameterSetting(Domain *D,const char *input)
 {
    LoadList LL{};
    UndList UL{};
+   QuadList QD{};
 
    int myrank=0, nTasks=1;
    //MPI_Status status;
@@ -77,6 +79,14 @@ void parameterSetting(Domain *D,const char *input)
    else  { printf("In [Save], total_length=? [m].\n");  fail=true;  }
 
    //Domain parameter setting
+   if(FindParameters("Domain",1,"minX",input,str)) D->minX=atof(str)*1e-6;
+   else  { printf("In [Domain], minX=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"maxX",input,str)) D->maxX=atof(str)*1e-6;
+   else  { printf("In [Domain], maxX=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"minY",input,str)) D->minY=atof(str)*1e-6;
+   else  { printf("In [Domain], minY=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"maxY",input,str)) D->maxY=atof(str)*1e-6;
+   else  { printf("In [Domain], maxY=? [um].\n");  fail=true;  }
    if(FindParameters("Domain",1,"minZ",input,str)) D->minZ=atof(str)*1e-6;
    else  { printf("In [Domain], minZ=? [um].\n");  fail=true;  }
    if(FindParameters("Domain",1,"maxZ",input,str)) D->maxZ=atof(str)*1e-6;
@@ -137,6 +147,38 @@ void parameterSetting(Domain *D,const char *input)
    D->lambdaU = UL.lambdaU;
    D->ku = 2.0*M_PI/UL.lambdaU;
 
+   // Quad parameter setting
+   rank=1;
+   while(findQuadLoadParameters(rank, QD, D,input))
+   {
+      D->quadList.push_back(QD);
+      rank ++;
+      QD = QuadList {};
+   }
+   D->nQuad = rank-1;
+
+   //space charge
+   if(FindParameters("Space_charge",1,"number_fourier_mode",input,str)) D->SCFmode=atoi(str);
+   else  D->SCFmode=1;
+   if(FindParameters("Space_charge",1,"number_longitudinal_mode",input,str)) D->SCLmode=atoi(str);
+   else  D->SCLmode=1;
+   D->dr = sqrt((D->maxX-D->minX)*(D->maxX-D->minX)+(D->maxY-D->minY)*(D->maxY-D->minY))/(1.0*D->nx);
+
+   // Bessel Table
+   if(FindParameters("Bessel_table",1,"num_grids",input,str)) D->bn=atoi(str);
+   else  D->bn=2001;
+
+   // seeding pulse
+   if(FindParameters("Seed",1,"power",input,str)) D->P0=atof(str);
+   else  { printf("In [Seed], power=? [W].\n");  fail=true;   }
+   if(FindParameters("Seed",1,"spot_sigma_R",input,str)) D->spotSigR=atof(str)*1e-6;
+   else  { printf("In [Seed], spot_sigma_R=? [um].\n");  fail=true;   }
+   if(FindParameters("Seed",1,"rms_duration",input,str)) D->duration=atof(str)*1e-15;
+   else  { printf("In [Seed], rms_duration=? [fs].\n");  fail=true;   }
+   if(FindParameters("Seed",1,"focus",input,str)) D->focus=atof(str);
+   else  { printf("In [Seed], focus=? [m].\n");  fail=true;   }
+
+
    // Extra setting
    D->nx=1;
    D->ny=1;
@@ -170,6 +212,64 @@ void parameterSetting(Domain *D,const char *input)
       std::exit(1);
    }
 }
+
+int findQuadLoadParameters(int rank,QuadList& QD,Domain *D,const char *input)
+{
+   char name[100], str[100];
+   bool fail = false;
+
+   int myrank, nTasks;
+   MPI_Status status;
+
+   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   if(FindParameters("Quad",rank,"numbers",input,str)) QD.numbers=atoi(str);
+   else  QD.numbers=0;
+
+   if (QD.numbers>0) {
+	   QD.unitStart.assign(QD.numbers,0.0);
+	   QD.unitEnd.assign(QD.numbers,0.0);
+	   QD.qdStart.assign(QD.numbers,0.0);
+	   QD.qdEnd.assign(QD.numbers,0.0);
+	   QD.g.assign(QD.numbers,0.0);
+
+      if(FindParameters("Quad",rank,"unit_start",input,str)) QD.unitStart[0]=atof(str);
+      else  { printf("In [Quad], unit_start should be defined.\n");  fail=true; }
+      if(FindParameters("Quad",rank,"unit_end",input,str)) QD.unitEnd[0]=atof(str);
+      else  { printf("In [Quad], unit_end should be defined.\n");  fail=true; }
+      if(FindParameters("Quad",rank,"quad_start",input,str)) QD.qdStart[0]=atof(str);
+      else  { printf("In [Quad], quad_start should be defined.\n");  fail=true; }
+      if(FindParameters("Quad",rank,"quad_end",input,str)) QD.qdEnd[0]=atof(str);
+      else  { printf("In [Quad], quad_end should be defined.\n");  fail=true; }
+      if(FindParameters("Quad",rank,"g",input,str)) QD.g[0]=atof(str);
+      else  { printf("in [Quad], g=? [T/m]\n");  fail=true;   }
+
+      double unitLength=QD.unitEnd[0]-QD.unitStart[0];
+      double qdStart=QD.qdStart[0]-QD.unitStart[0];
+      double qdLength=QD.qdEnd[0]-QD.qdStart[0];
+      double g=QD.g[0];
+      for(int i=1; i<QD.numbers; ++i)  {
+         QD.unitStart[i]=QD.unitEnd[i-1];
+         QD.unitEnd[i]=QD.unitStart[i]+unitLength;
+         QD.qdStart[i]=QD.unitStart[i]+qdStart;
+         QD.qdEnd[i]=QD.qdStart[i]+qdLength;
+         QD.g[i]=g;
+      }
+   }
+
+   return QD.numbers;
+   
+   if(fail) {
+      MPI_Finalize();
+      std::exit(1);
+   }
+}
+
+
+
+
+
 
 bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *input)
 {
@@ -232,7 +332,7 @@ bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *inpu
          double undStart=UL.undStart[0]-UL.unitStart[0];
          double undLength=UL.undEnd[0]-UL.undStart[0];
 
-         for(size_t i=1; i<UL.numbers; ++i)  {
+         for(int i=1; i<UL.numbers; ++i)  {
             UL.unitStart[i]=UL.unitEnd[i-1];
             UL.unitEnd[i]=UL.unitStart[i]+unitLength;
             UL.undStart[i]=UL.unitStart[i]+undStart;
@@ -257,10 +357,6 @@ bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *inpu
    }
 }
 
-
-
-
-
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
 {
    char str[100],name[100];
@@ -282,6 +378,20 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
       else  { printf("In [EBeam], energy_spread=? [%%].\n"); fail=true;  }
       if(FindParameters("EBeam",1,"peak_current",input,str)) LL.peakCurrent=atof(str);
       else  { printf("In [EBeam], peak_current=? [A].\n"); fail=true;  }
+      if(FindParameters("EBeam",1,"beta_x",input,str)) LL.betaX=atof(str);
+      else  { printf("In [EBeam], beta_x=? [m].\n"); fail=1;  }
+      if(FindParameters("EBeam",1,"beta_y",input,str)) LL.betaY=atof(str);
+      else  { printf("In [EBeam], beta_y=? [m].\n"); fail=1;  }
+      if(FindParameters("EBeam",1,"alpha_x",input,str)) LL.alphaX=atof(str);
+      else  { printf("In [EBeam], alpha_x=? [m].\n"); fail=1;  }
+      if(FindParameters("EBeam",1,"alpha_y",input,str)) LL.alphaY=atof(str);
+      else  { printf("In [EBeam], alpha_y=? [m].\n"); fail=1;  }
+      if(FindParameters("EBeam",1,"norm_emittance_x",input,str)) LL.emitX=atof(str)*1e-6;
+      else  { printf("In [EBeam], norm_emittance_x=? [um].\n"); fail=1;  }
+      if(FindParameters("EBeam",1,"norm_emittance_y",input,str)) LL.emitY=atof(str)*1e-6;
+      else  { printf("In [EBeam], norm_emittance_y=? [um].\n"); fail=1;  }
+
+
       if(FindParameters("EBeam",1,"noise_ONOFF",input,str)) LL.noiseONOFF=whatONOFF(str);
       else  { printf("In [EBeam], noise_ONOFF=? [ON or OFF].\n"); fail=true;  }
 

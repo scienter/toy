@@ -6,6 +6,7 @@
 #include "particle.h"
 
 using cplx = std::complex<double>;
+const std::complex<double> I(0.0,1.0);
 
 enum class ONOFFMode {
     OFF    = 0,
@@ -38,8 +39,13 @@ struct UndList  {
    std::vector<double> unitStart, unitEnd;
    std::vector<double> undStart, undEnd;
    std::vector<double> K0;
+};
 
-
+struct QuadList  {
+   int numbers;
+   std::vector<double> unitStart, unitEnd;
+   std::vector<double> qdStart, qdEnd;
+   std::vector<double> g;  //[T/m]
 };
 
 
@@ -50,7 +56,9 @@ typedef struct _Domain
    OperationMode mode;
 
    int numHarmony, *harmony;
-   std::vector<cplx> Ux,Uy,ScUx,ScUy;
+   std::vector<std::vector<cplx>> Ux,Uy,ScUx,ScUy;
+   std::vector<std::vector<cplx>> Ez;
+   std::vector<std::vector<double>> totalEnergyX,totalEnergyY;
 
 
    //Save option
@@ -58,7 +66,7 @@ typedef struct _Domain
 
    //Domain box
    int sliceN,subSliceN,nx,ny,minI,maxI;
-   double minZ,maxZ;
+   double minX,maxX,minY,maxY,minZ,maxZ;
    double Lz,dz;   
 
    //Electron beam
@@ -75,6 +83,23 @@ typedef struct _Domain
    double lambdaU,ku,K0=0.0,K0_alpha,ue;
    std::vector<UndList> undList;
 
+   //Quad
+   int nQuad;
+   double g;
+   std::vector<QuadList> quadList;
+   
+   //Space charge
+   int SCLmode,SCFmode;
+   double dr;
+
+   //Bessel Table
+   double BesselMax,dBessel;
+   int BesselMaxOrder,bn;
+   std::vector<std::vector<double>> BesselJ;
+
+   //Seed
+   double P0,duration,spotSigR,a0,zR,focus;
+
 }  Domain; 
 
 
@@ -87,5 +112,8 @@ void loadBeam(Domain *D,LoadList &LL,int s,int iteration);
 void updateK_quadG(Domain *D,int iteration,double half);
 void push_theta_gamma(Domain *D,int iteration);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
+void solveField(Domain *D,int iteration);
+void updateTotalEnergy(Domain *D,int iteration);
+
 
 #endif   //MESH_H

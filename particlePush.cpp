@@ -35,137 +35,135 @@ void push_theta_gamma(Domain *D,int iteration)
 
 void push_theta_gamma_1D(Domain &D,int iteration)
 {
+   ptclList *p;
+
    int myrank;
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    int startI=1;       
-   int endI=D->subSliceN+1;
-   int minI=D->minI;   
-   int maxI=D->maxI;
-   double ue=D->ue;
-   double phi=std::atan(2*ue/(1-ue*ue));
-   if(ue==1) psi_chi=M_PI*0.5; 
-   else if(ue==-1) psi_chi=M_PI*0.5; 
+   int endI=D.subSliceN+1;
+   int minI=D.minI;   
+   int maxI=D.maxI;
+   double ue=D.ue;
+   double ks=D.ks;
+   double ku=D.ku;
+   double K0=D.K0;
+   double dz=D.dz;
+   int L = D.SCLmode;
+   double dPhi=2.0*M_PI*D.numSlice;
 
-/*
-   int N,m,s,h,H,numHarmony,nx,ny,order,ll,L,f,F;
-   int startI,endI,minI,maxI,sliceI,indexJ,idx,n,numInBeamlet;
-   LoadList *LL;
-   double complex Ux[D->numHarmony],Uy[D->numHarmony],Em[D->SCLmode];
-   double dz,dx,dy,ku,ks,K0,K,xi,xi2,e_mc2,r,dr,dBessel;
-   double x0,y0,px,py,pr2,r2,gam0,gam,th,th0,invGam,minX,minY,wakeE;
-   double J1,J2,J3,wr[2],wx[2],wy[2],w[2],sumTh,sumG,sumEzPart;
-   double tmp,dPhi,coefList[5]={0,0,0.5,0.5,1},k_th[5]={0,0,0,0,0},k_gam[5]={0,0,0,0,0};	 
-   double B,sumU2;
-   double complex fx,fy,compTmp,expP,expM,tmpComp;
-   ptclList *p;
+   std::complex<double> U=(1.0-ue*ue + I*2.0*ue)/(1.0+ue*ue);
+   double Phi = std::arg(U);
+   int numHarmony = D.numHarmony;
+   double e_mc2 = eCharge/eMass/velocityC/velocityC;	 
 
-   dz=D->dz;    K0=D->K0;
-   ku=D->ku;    ks=D->ks;
-   numHarmony=D->numHarmony;
-   dBessel = D->dBessel;
-   minX=D->minX;  minY=D->minY;
-   dPhi=2*M_PI*D->numSlice;
-   e_mc2 = eCharge/eMass/velocityC/velocityC;	 
-
-
-   int K0_alpha=D->K0_alpha;
-   double K2=(1+ue*ue)*K0*K0*0.5;
-   double complex etaX, etaY;
+   double K0_alpha = D.K0_alpha;
+   std::complex<double> etaX,etaY;
    if(K0_alpha==1) {
-      etaX=cos(psi_chi*0.5);
-      etaY=I*sin(psi_chi*0.5);
+      etaX=std::cos(Phi*0.5);
+      etaY=I*std::sin(Phi*0.5);
    } else if(K0_alpha==-1) {
-      etaX=I*sin(psi_chi*0.5);
-      etaY=cos(psi_chi*0.5);
+      etaX=I*std::sin(Phi*0.5);
+      etaY=std::cos(Phi*0.5);
    } else {
-      if(myrank==0) printf("K0_alpha=%d\n",K0_alpha); else ;
-      exit(0);
+      if(myrank==0) 
+         std::cerr << "Error: Invalid K0_alpha = " << K0_alpha << std::endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
    }
-    
-   L = D->SCLmode; F = D->SCFmode;	 
-   N=D->nx*D->ny;
 
-   LL=D->loadList;
-   s=0;
-   while(LL->next) {
-      numInBeamlet=LL->numInBeamlet; 
-      for(sliceI=startI; sliceI<endI; sliceI++)
+   
+   double K2 = 1.0 + K0*K0*0.5*(1.0+ue*ue);
+   double coefList[5]={0,0,0.5,0.5,1},k_th[5]={0,0,0,0,0},k_gam[5]={0,0,0,0,0},w[2]={0,0};
+   double dBessel = D.dBessel;
+   double sumEzPart=0.0;
+   //double xi = ks/ku*K0*K0*(1.0-ue*ue)/(8.0*gam*gam);
+   double xi = 0.25*K0*K0*(1.0-ue*ue)/(1.0+(1.0+ue*ue)*K0*K0*0.5);
+   cplx fx=0.0+I*0.0;
+   cplx fy=0.0+I*0.0;
+   std::vector<cplx> Ux(numHarmony),Uy(numHarmony),Em(L);
+
+   for(int s=0; s<D.nSpecies; ++s)
+   {
+      for(int sliceI=startI; sliceI<endI; ++sliceI) 
       {
-         if(D->wakeONOFF==ON) wakeE=D->wakeE[sliceI-startI+minI]/mc2*1e-6;
-         else                wakeE=0.0;      
-
-         p=D->particle[sliceI].head[s]->pt;
-         while(p) {
-            for(n=0; n<numInBeamlet; n++) {
-               th0=p->theta[n]; gam0=p->gamma[n];
-               xi=ks/ku*K0*K0/(8.0*gam0*gam0)*(1-ue*ue);
-
-               for(ll=0; ll<L; ll++) 
-                  for(f=0; f<F; f++) 
-	             Em[ll]=D->Ez[sliceI][0][ll][f];
-                      	   
-               for(h=0; h<numHarmony; h++)  {				
-                  Ux[h]=D->Ux[h][sliceI][0];
-                  Uy[h]=D->Uy[h][sliceI][0];
+         for(int ll=0; ll<L; ++ll) 
+	         Em[ll]=D.Ez[ll][sliceI];
+         
+         for(int h=0; h<numHarmony; ++h)  {				
+            Ux[h]=D.Ux[h][sliceI];
+            Uy[h]=D.Uy[h][sliceI];
+         }
+               
+         double sumU2=0.0;
+         for(int h=0; h<numHarmony; ++h)  {
+            int H = D.harmony[h];
+            double absUx2 = std::norm(Ux[h]);
+            double absUy2 = std::norm(Uy[h]);
+            sumU2 += (absUx2 + absUy2)/(2.0*H*H);
+         }
+               
+         p = D.particle[sliceI].head[s]->pt;         
+         const size_t cnt=p->x.size();
+         for(size_t n=0; n<cnt; ++n) {
+            double th0=p->theta[n]; 
+            double gam0=p->gamma[n];
+            
+            //Start of Runge-Kutta
+            k_th[0]=0.0; 
+            k_gam[0]=0.0; 
+            for(size_t m=1; m<5; ++m) {
+               double th=th0 + dz*k_th[m-1]*coefList[m]; 
+               double gam=gam0 + dz*k_gam[m-1]*coefList[m];
+               double sumTh=0.0;
+               double sumG=0.0;
+         
+               sumEzPart = 0.0;
+               for(int ll=0; ll<L; ++ll)  {
+                  double tmp=std::real(Em[ll]*std::exp(I*(ll+1.0)*th));
+                  sumEzPart += 2.0*tmp;
                }
-               sumU2=0.0;
-               for(h=0; h<numHarmony; h++)  {
-                  H = D->harmony[h];
-                  sumU2+=(cabs(Ux[h])*cabs(Ux[h])+cabs(Uy[h])*cabs(Uy[h]))/(2.0*H*H);
-               }
-                 
-               k_th[0]=0; 
-               k_gam[0]=0; 
-               for(m=1; m<5; m++) {
-                  th=th0 + dz*k_th[m-1]*coefList[m]; 
-                  gam=gam0 + dz*k_gam[m-1]*coefList[m];
-                  sumTh=sumG=0.0;
-                  for(h=0; h<numHarmony; h++)  {
-                     H = D->harmony[h];
-                     idx=(int)(H*xi/dBessel);
-                     w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
-                     if(H%2==1)  {  //odd harmony
-                        tmp=pow(-1.0,(H-1)*0.5);
-                        order=(H-1)*0.5;
-                        J1=D->BesselJ[idx][order]*w[0]+D->BesselJ[idx+1][order]*w[1];
-                        order=(H+1)*0.5;
-                        J2=D->BesselJ[idx][order]*w[0]+D->BesselJ[idx+1][order]*w[1];
-                        fx=tmp*(K0_alpha*J1-J2);
-                        fy=tmp*(K0_alpha*J1+J2);
-                     } else {    //even harmony
-                        fx=0.0+I*0.0;
-                        fy=0.0+I*0.0;
-                     }
-                     tmpComp=cexp(I*H*(th+psi_chi*0.5))*(etaX*fx*Ux[h]-etaY*fy*Uy[h]);
-                     sumTh+=creal(I*tmpComp+conj(I*tmpComp))/(2.0*H);
-                     sumG+=creal(tmpComp+conj(tmpComp))/(4.0*gam);
-                  }  //End of harmonics
 
-                  sumEzPart = 0.0;
-                  for(ll=0; ll<L; ll++)  {
-                     tmp=creal(Em[ll]*cexp(I*(ll+1)*th));
-	             sumEzPart += 2.0*tmp;
-   	          }
-                  k_th[m]=ku-ks/(2*gam*gam)*(1+K2+sumU2+K0*sqrt(ue*ue+1)*sumTh);
-                  k_gam[m]=ks*K0*sqrt(ue*ue+1)*sumG + e_mc2*sumEzPart;
-               }   //End of Runge-Kutta
-               tmp=dz/6.0*(k_th[1] + 2*k_th[2] + 2*k_th[3] + k_th[4]);                 
-               if(tmp>dPhi || tmp<=-dPhi) {
-                  printf("myrank=%d,iteration=%d,th0=%g,dTheta=%g,sumEzPart=%g,Ux[%d]=%g+I%g,k_th[1]=%g,k_th[2]=%g,k_th[3]=%g,k_th[4]=%g\n",myrank,iteration,th0,dPhi,sumEzPart,h,creal(Ux[h]),cimag(Ux[h]),k_th[1],k_th[2],k_th[3],k_th[4]);
-                  exit(0);
-               } else;
-               p->theta[n]+=tmp; 
-               p->gamma[n]+=dz/6.0*(k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4])-dz*wakeE; 
-            }        // End of for(numSlice)
+               for(int h=0; h<numHarmony; ++h)  {
+                  int H = D.harmony[h];
+                  double sign = ((H-1)/2 % 2 ==0) ? 1.0 : -1.0;
+                  int idx=(int)(H*xi/dBessel);
+                  w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
+                  if(H%2==1)  {  //odd harmony
+                     int order=(H-1)*0.5;
+                     double J1=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
+                     order=(H+1)*0.5;
+                     double J2=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
+                     fx=sign*(K0_alpha*J1-J2);
+                     fy=sign*(K0_alpha*J1+J2);
+                  } else {    //even harmony
+                     fx=0.0+I*0.0;
+                     fy=0.0+I*0.0;
+                  }
 
-            p=p->next;               
-         }       //End of while(p)
-      }     //Enf of for(sliceI)     
-      LL=LL->next;
-      s++;
-   }           //End of while(LL)
-*/
+                  cplx tmpComp=std::exp(I*(1.0*H)*(th+Phi*0.5))*(etaX*fx*Ux[h]-etaY*fy*Uy[h]);
+                  sumTh += std::real(I*tmpComp)/(1.0*H);
+                  sumG += std::real(tmpComp)/(1.0*gam);
+               }  //End of harmonics
+
+               k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*sqrt(ue*ue+1.0)*sumTh);
+               k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG + e_mc2*sumEzPart;
+            }   //End of Runge-Kutta 
+   
+            double tmpTh=dz/6.0 * (k_th[1]+2.0*k_th[2]+2.0*k_th[3]+k_th[4]);
+            if(tmpTh>dPhi || tmpTh<=-dPhi) {
+               printf("myrank=%d,iteration=%d,sliceI=%d,th0=%g,dTheta=%g,sumEzPart=%g,k_th[1]=%g,k_th[2]=%g,k_th[3]=%g,k_th[4]=%g\n"
+                   ,myrank,iteration,sliceI,th0,dPhi,sumEzPart,k_th[1],k_th[2],k_th[3],k_th[4]);
+               MPI_Abort(MPI_COMM_WORLD,1);
+            }
+            p->theta[n]+=tmpTh; 
+            double tmpGam=dz/6.0*(k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]); //-dz*wakeE; 
+            p->gamma[n]+=tmpGam;
+         }
+         
+      }  //End of for(sliceI)
+
+   }   //End of for(s)
+
 
 }
 
