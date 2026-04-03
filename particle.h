@@ -47,6 +47,7 @@ struct LoadList  {
    double emitX,emitY;
    double alphaX,alphaY;
    double betaX,betaY;
+   bool transFlat;
 
    // For Polygon mode
    int znodes = 0;

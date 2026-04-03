@@ -22,8 +22,8 @@ enum class OperationMode {
 
 enum class UndMode {
     Unknown    = 0,
-    Normal    = 1,
-    AppleX   = 2
+    BiPolar    = 1,
+    QuadPolar   = 2
     // 필요하면 다른 모드 추가
 };
 
@@ -68,6 +68,11 @@ typedef struct _Domain
    int sliceN,subSliceN,nx,ny,minI,maxI;
    double minX,maxX,minY,maxY,minZ,maxZ;
    double Lz,dz;   
+   double dx,dy;
+
+   // ABC condition
+   int abcN;
+   double abcSig;
 
    //Electron beam
    int nSpecies=0;
@@ -111,9 +116,12 @@ void boundary(Domain *D);
 void loadBeam(Domain *D,LoadList &LL,int s,int iteration);
 void updateK_quadG(Domain *D,int iteration,double half);
 void push_theta_gamma(Domain *D,int iteration);
-void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
 void solveField(Domain *D,int iteration);
 void updateTotalEnergy(Domain *D,int iteration);
+void transversePush(Domain *D,int iteration);
+
+void saveFieldsToTxt(const Domain &D, const std::string& fileName);
+void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
 
 
 #endif   //MESH_H

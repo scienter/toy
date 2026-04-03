@@ -31,9 +31,10 @@ void boundary(Domain *D)
    D->minI = 0;
    D->maxI = 1;
 
-
-
    // Field memory setting
+   std::cout << "Here. nx=" << D->nx
+             << ", ny=" << D->ny
+             << std::endl;
    D->Ux=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
    D->Uy=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
    D->ScUx=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
@@ -42,36 +43,6 @@ void boundary(Domain *D)
    
    D->totalEnergyX=doubleMemoryFlat(D->maxStep,D->numHarmony);
    D->totalEnergyY=doubleMemoryFlat(D->maxStep,D->numHarmony);
-/*
-
-   // space charge
-   nz = D->subSliceN+2;
-   D->Ez=(double complex ****)malloc(nz*sizeof(double complex ***));
-   for(i=0; i<nz; i++) {
-      D->Ez[i]=(double complex ***)malloc(D->nr*sizeof(double complex **));
-      for(j=0; j<D->nr; j++) {
-         D->Ez[i][j]=(double complex **)malloc(D->SCLmode*sizeof(double complex *));
-         for(l=0; l<D->SCLmode; l++)
-            D->Ez[i][j][l]=(double complex *)malloc(D->SCFmode*sizeof(double complex ));
-     }
-   }
-   for(i=0; i<nz; i++)
-      for(j=0; j<D->nr; j++)
-         for(l=0; l<D->SCLmode; l++)
-            for(m=0; m<D->SCFmode; m++)
-               D->Ez[i][j][l][m]=0.0+I*0.0;
-*/
-
-
-   // setting up particle's pointer
-   //LL=D->loadList;
-   //s=0; 
-   //while(LL->next) {
-   //  totalCnt=LL->numBeamlet*LL->numInBeamlet;
-   //  LL->totalCnt=totalCnt;
-   //  LL=LL->next;
-   //  s++;
-   //}
 
    D->particle.resize(D->subSliceN+2);
    for(auto& p : D->particle) {

@@ -64,7 +64,9 @@ int main(int argc, char *argv[])
    {
       if(iteration%20==0) {
          for (size_t s=0; s<D.loadList.size(); ++s) {
-            std::string fileName = std::to_string(s) + "Particle" + std::to_string(iteration);
+            std::string fileName = "Field" + std::to_string(iteration);
+            saveFieldsToTxt(D, fileName);
+            fileName = std::to_string(s) + "Particle" + std::to_string(iteration);
             saveParticlesToTxt(D, s, fileName);
          }
       }
@@ -72,16 +74,21 @@ int main(int argc, char *argv[])
       // Update Total Energy
       updateTotalEnergy(&D,iteration);
 
-
       solveField(&D,iteration);
       //std::cout << "iteration=" << iteration << "after solveField" << std::endl;
 
       updateK_quadG(&D,iteration,0);
       //std::cout << "iteration=" << iteration << "after 1st updateK" << std::endl;
 
+      if(D.dimension==3) 
+         transversePush(&D,iteration);
+
       updateK_quadG(&D,iteration,0.5);
       //std::cout << "iteration=" << iteration << "after 2nd updateK" << std::endl;
 
+      if(D.dimension==3) 
+         transversePush(&D,iteration);
+      
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
       else {
          std::cout << "iteration=" << iteration
@@ -96,8 +103,6 @@ int main(int argc, char *argv[])
       }
       iteration++;
    }
-
-
 
 
 

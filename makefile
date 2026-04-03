@@ -1,6 +1,6 @@
 EXEC = show
 CC = /opt/ompi/5.0.6/bin/mpicxx
-OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveParticleToTxt.o
+OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveFile.o
 
 ##selfseed.o clean.o aveParticleHDF.o saveFieldHDF.o earrangeParticles.o fieldShareZ.o loadSeed.o twiss.o wakeField.o chicane.o saveFile.o restoreDumpHDF.o
 

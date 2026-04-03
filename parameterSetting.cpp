@@ -91,6 +91,22 @@ void parameterSetting(Domain *D,const char *input)
    else  { printf("In [Domain], minZ=? [um].\n");  fail=true;  }
    if(FindParameters("Domain",1,"maxZ",input,str)) D->maxZ=atof(str)*1e-6;
    else  { printf("In [Domain], maxZ=? [um].\n");  fail=true;  }
+   if(FindParameters("Domain",1,"nx",input,str))   D->nx=atoi(str);
+   else  { printf("In [Domain], nx=? .\n");  fail=true;  }
+   if(FindParameters("Domain",1,"ny",input,str))   D->ny=atoi(str);
+   else  { printf("In [Domain], ny=? .\n");  fail=true;  }
+   D->dx=(D->maxX-D->minX)/(D->nx*1.0);
+   D->dy=(D->maxY-D->minY)/(D->ny*1.0);
+   D->nx+=1;
+   D->ny+=1;
+   if(D->dimension==1) { D->nx=1; D->ny=1; D->dx=0.0; D->dy=0.0; }
+
+   //Absorption boundary
+   if(FindParameters("Domain",1,"ABC_N",input,str)) D->abcN=atoi(str);
+   else  D->abcN=10;
+   if(FindParameters("Domain",1,"ABC_coef",input,str)) D->abcSig=atof(str);
+   else  D->abcSig=1;
+
 
    if(FindParameters("Domain",1,"num_harmony",input,str)) D->numHarmony=atoi(str);
    else { D->numHarmony=1; }
@@ -180,9 +196,6 @@ void parameterSetting(Domain *D,const char *input)
 
 
    // Extra setting
-   D->nx=1;
-   D->ny=1;
-
 
    if(D->mode==OperationMode::Static) {
       D->minZ=-0.5*D->lambda0*D->numSlice;
@@ -386,6 +399,8 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
       else  { printf("In [EBeam], alpha_x=? [m].\n"); fail=1;  }
       if(FindParameters("EBeam",1,"alpha_y",input,str)) LL.alphaY=atof(str);
       else  { printf("In [EBeam], alpha_y=? [m].\n"); fail=1;  }
+      if(FindParameters("EBeam",rank,"transverse_flat",input,str)) LL.transFlat=whatONOFF(str);
+      else LL.transFlat=false;
       if(FindParameters("EBeam",1,"norm_emittance_x",input,str)) LL.emitX=atof(str)*1e-6;
       else  { printf("In [EBeam], norm_emittance_x=? [um].\n"); fail=1;  }
       if(FindParameters("EBeam",1,"norm_emittance_y",input,str)) LL.emitY=atof(str)*1e-6;
@@ -442,10 +457,10 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
 
 UndMode whatUndMode(char *str)
 {
-   if (strstr(str,"Normal") != nullptr)
-      return UndMode::Normal;
-   else if (strstr(str,"AppleX") != nullptr)
-      return UndMode::AppleX;
+   if (strstr(str,"BiPolar") != nullptr)
+      return UndMode::BiPolar;
+   else if (strstr(str,"QuadPolar") != nullptr)
+      return UndMode::QuadPolar;
    else 
       return UndMode::Unknown;
 }

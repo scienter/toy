@@ -32,9 +32,9 @@ void updateTotalEnergy(Domain *D,int iteration)
 
    double area=2.0*M_PI*D->spotSigR*D->spotSigR;
    double coef=eMass*velocityC*velocityC*D->ks/eCharge;
-   double coef2=coef*coef/(2*Z0)*area;
-   //if(D->dimension==3)
-   //   coef2=coef*coef/(2*Z0)*D->dx*D->dy;
+   double coef2=coef*coef/(2.0*Z0)*area;
+   if(D->dimension==3)
+      coef2=coef*coef/(2.0*Z0)*D->dx*D->dy;
    //if(D->mode==Time_Dependent) coef2*=dt; else ;
 
    
