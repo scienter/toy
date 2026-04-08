@@ -34,7 +34,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
 
    int startI=1;       
    int endI=1+D.subSliceN;
-   
+  
+   int maxH=D.harmony[D.numHarmony-1]; 
    int numInBeamlet=LL.numInBeamlet;
    double gamma0=LL.energy/mc2+1;
    double dGam=LL.spread*gamma0;
@@ -70,9 +71,10 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_rng *ran = gsl_rng_alloc(T);
    
    gsl_qrng *q1 = nullptr;
-
+   gsl_qrng *q2 = nullptr;
    //q1 = gsl_qrng_alloc(gsl_qrng_niederreiter_2,3);
-   q1=gsl_qrng_alloc(gsl_qrng_sobol,7);	
+   q1=gsl_qrng_alloc(gsl_qrng_sobol,1);	
+   q2=gsl_qrng_alloc(gsl_qrng_sobol,6);	
 
    unsigned long randskip = 0;   
    if (LL.randONOFF==false) {
@@ -83,9 +85,11 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       srand(static_cast<unsigned int>(time(nullptr)));
       randskip = static_cast<unsigned long>(rand()) % (nTasks * 2UL);
    }
-   double v1[7] = {0.0};
+   double v1[1] = {0.0};
+   double v2[6] = {0.0};
    for (unsigned long ii = 0; ii < randskip; ++ii) {
       gsl_qrng_get(q1, v1);
+      gsl_qrng_get(q2, v2);
    }
    
    for(int sliceI=startI; sliceI<endI; ++sliceI) {
@@ -117,9 +121,9 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
 
       unsigned int beamlets=LL.numBeamlet*n0;
       double remacro = (beamlets >0)
-                     ? macro*static_cast<double>(LL.numBeamlet)/beamlets*n0
+                     ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
-      double eNumbers=remacro*numInBeamlet;
+      double eNumbers=remacro*numInBeamlet*beamlets;
       if(eNumbers<10) eNumbers=10;  
 
       auto New = std::make_unique<ptclList>();
@@ -144,18 +148,18 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       New->core.resize(totalParticles);
       
       unsigned long ptclIdx=0;
+      double x,y,xPrime,yPrime;
       for(unsigned int b=0; b<beamlets; ++b)  {
          gsl_qrng_get(q1,v1);
+         gsl_qrng_get(q2,v2);
 
-         double r1  = v1[0]; if (r1 == 0.0) r1 = 1e-9;
-         double r2  = v1[1];
-         double pr1 = v1[2]; if (pr1 == 0.0) pr1 = 1e-9;
-         double pr2 = v1[3];
-         double th  = v1[4];
-         double gam = v1[5]; if (gam == 0.0) gam = 1e-9;
+         double theta0 = v1[0]*dPhi;
+         double r1  = v2[0]; if (r1 == 0.0) r1 = 1e-10;
+         double r2  = v2[1];
+         double pr1 = v2[2]; if (pr1 == 0.0) pr1 = 1e-10;
+         double pr2 = v2[3];
+         double gam = v2[4]; if (gam == 0.0) gam = 1e-10;
          
-         double x, y, xPrime, yPrime;
-
          if (LL.transFlat == false)  {  // Transverse Gaussian
             // Position (Box-Muller)
             double coef = std::sqrt(-2.0 * std::log(r1));
@@ -178,18 +182,23 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
          }
 
          // Energy spread
-         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v1[6]*2.0*M_PI);
+         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v2[5]*2.0*M_PI);
          gam=gamma0+dGam*tmp;
 
-	      double theta0=th*dPhi;
-         //double theta0=th*(dPhi-(numInBeamlet-1.0)/numInBeamlet*1.0 * 2*M_PI);
-         
          double pz=sqrt((gam*gam-1.0)/(1.0+xPrime*xPrime+yPrime*yPrime));
          double px=xPrime*pz;
          double py=yPrime*pz;
          x-=delTX*px/gam;
          y-=delTY*py/gam;
 
+         std::vector<double> an(maxH+1, 0.0);
+         std::vector<double> bn(maxH+1, 0.0);
+         for(int m=1; m<=maxH; ++m) {
+            double sigma=std::sqrt(2.0/eNumbers/(1.0*m*m)); //Fawley PRSTAB V5 070701 (2002)
+            an[m]=gsl_ran_gaussian(ran,sigma);
+            bn[m]=gsl_ran_gaussian(ran,sigma);
+         }
+         
          for(int n=0; n<numInBeamlet; ++n)  {
             unsigned long idx = ptclIdx++;
 
@@ -201,25 +210,17 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
 
             double theta=theta0+n*div;
             double noise=0.0;
-            for(int m=1; m<=numInBeamlet/2; ++m) {
-               double sigma=std::sqrt(2.0/eNumbers/(1.0*m*m)); //Fawley PRSTAB V5 070701 (2002)
-               //an=gaussianDist_1D(sigma);
-               //bn=gaussianDist_1D(sigma);
-               double an=gsl_ran_gaussian(ran,sigma);
-               double bn=gsl_ran_gaussian(ran,sigma);
-               noise += an*std::cos(m*theta) + bn*std::sin(m*theta);
-            }
-            double final_theta = theta + noise * noiseONOFF;
-            //if(tmp>=dPhi) tmp-=dPhi;
-            //else if(tmp<0) tmp+=dPhi;
-            //else ;
-            New->theta[idx]=final_theta;
+            for(int m=1; m<=maxH; ++m) 
+               noise += an[m]*std::cos(m*theta) + bn[m]*std::sin(m*theta);
+            
+            New->theta[idx] = theta + noise * noiseONOFF;
          }     // End for(n)    
       }      // End for(b) 
       New.release();
    }			//End of for(i)
 
    gsl_qrng_free(q1);
+   gsl_qrng_free(q2);
    gsl_rng_free(ran);
 
    /*
@@ -256,6 +257,7 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
 
+   int maxH=D.harmony[D.numHarmony-1];
    int numInBeamlet=LL.numInBeamlet;
    double gamma0=LL.energy/mc2+1;
    double dGam=LL.spread*gamma0;
@@ -268,7 +270,7 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    double div=2.0*M_PI/(1.0*numInBeamlet);
    double noiseONOFF=LL.noiseONOFF ? 1.0 : 0.0;
 
-   double macro=current/eCharge/velocityC*bucketZ/ptclCnt;
+   double macro=current/eCharge/velocityC*bucketZ/static_cast<double>(ptclCnt);
 
    // gsl random generator
    gsl_rng_env_setup();
@@ -277,9 +279,11 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_rng *ran = gsl_rng_alloc(T);
    
    gsl_qrng *q1 = nullptr;
+   gsl_qrng *q2 = nullptr;
 
    //q1 = gsl_qrng_alloc(gsl_qrng_niederreiter_2,3);
-   q1=gsl_qrng_alloc(gsl_qrng_sobol,3);	
+   q1=gsl_qrng_alloc(gsl_qrng_sobol,1);	
+   q2=gsl_qrng_alloc(gsl_qrng_sobol,2);	
 
    unsigned long randskip = 0;   
    if (LL.randONOFF==false) {
@@ -290,9 +294,11 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       srand(static_cast<unsigned int>(time(nullptr)));
       randskip = static_cast<unsigned long>(rand()) % (nTasks * 2UL);
    }
-   double v1[3] = {0.0};
+   double v1[1] = {0.0};
+   double v2[2] = {0.0};
    for (unsigned long ii = 0; ii < randskip; ++ii) {
       gsl_qrng_get(q1, v1);
+      gsl_qrng_get(q2, v2);
    }
 
    int minI=D.minI;
@@ -313,9 +319,9 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
 
       unsigned int beamlets=LL.numBeamlet*n0;
       double remacro = (beamlets >0)
-                     ? macro*static_cast<double>(LL.numBeamlet)/beamlets*n0
+                     ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
-      double eNumbers=remacro*numInBeamlet;
+      double eNumbers=remacro*numInBeamlet*beamlets;
       if(eNumbers<10) eNumbers=10;  
 
       size_t totalParticles = beamlets * numInBeamlet;
@@ -343,13 +349,23 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       unsigned long ptclIdx=0;
       for(unsigned int b=0; b<beamlets; ++b)  {
          gsl_qrng_get(q1,v1);
+         gsl_qrng_get(q2,v2);
          double th=v1[0];           
-         double gam= (v1[1]==0.0) ? 1e-4 : v1[1];
-         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v1[2]*2.0*M_PI);
+         double gam= (v2[0]==0.0) ? 1e-10 : v2[0];
+         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v2[1]*2.0*M_PI);
          gam=gamma0+dGam*tmp;
-         double theta0=th*(dPhi-(numInBeamlet-1.0)/numInBeamlet*1.0 * 2*M_PI);
+         double theta0=th*dPhi;
+         //double theta0=th*(dPhi-(numInBeamlet-1.0)/(numInBeamlet*1.2*M_PI);
          //theta0=(th)*(2*M_PI-(numInBeamlet-1.0)/(numInBeamlet*1.0)*2*M_PI);
          //theta0=(th)*(dPhi);  
+         std::vector<double> an(maxH+1, 0.0);
+         std::vector<double> bn(maxH+1, 0.0);
+         for(int m=1; m<=maxH; ++m) {
+            double sigma=std::sqrt(2.0/eNumbers/(1.0*m*m)); //Fawley PRSTAB V5 070701 (2002)
+  	         an[m]=gsl_ran_gaussian(ran,sigma);
+            bn[m]=gsl_ran_gaussian(ran,sigma);
+         }				 
+
          for(int n=0; n<numInBeamlet; ++n)  { 
             unsigned long idx = ptclIdx++;
       
@@ -361,25 +377,17 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
          
             double theta=theta0+n*div;
             double noise=0.0;
-            for(int m=1; m<=numInBeamlet/2; ++m) {
-               double sigma=std::sqrt(2.0/eNumbers/(1.0*m*m)); //Fawley PRSTAB V5 070701 (2002)
-               //an=gaussianDist_1D(sigma);
-               //bn=gaussianDist_1D(sigma);
-  	            double an=gsl_ran_gaussian(ran,sigma);
-               double bn=gsl_ran_gaussian(ran,sigma);
-               noise += an*std::cos(m*theta) + bn*std::sin(m*theta);
-            }				 
-            double final_theta = theta + noise * noiseONOFF;
-            //if(tmp>=dPhi) tmp-=dPhi; 
-            //else if(tmp<0) tmp+=dPhi; 
-            //else ;
-            New->theta[idx]=final_theta;       
+            for(int m=1; m<=maxH; ++m) 
+               noise += an[m]*std::cos(m*theta) + bn[m]*std::sin(m*theta);
+            
+            New->theta[idx] = theta + noise * noiseONOFF;
          }  	// End for(n)
       }      // End for(b) 
       New.release();
    }			//End of for(i)
 
    gsl_qrng_free(q1);
+   gsl_qrng_free(q2);
    gsl_rng_free(ran);
 }
 

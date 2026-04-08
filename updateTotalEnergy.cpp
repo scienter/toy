@@ -18,16 +18,23 @@ void updateTotalEnergy(Domain *D,int iteration)
    double dt=D->numSlice*D->lambda0/velocityC;
    double dz=D->dz;
    double minZ=D->minZ;
+   int nx=D->nx;
+   int ny=D->ny;
+   int N=nx*ny;
 
    for(int h=0; h<numHarmony; ++h) {
       double totalX=0.0;
       double totalY=0.0;
       for(int sliceI=startI; sliceI<endI; ++sliceI) {
-         totalX += std::norm(D->Ux[h][sliceI]);
-         totalY += std::norm(D->Uy[h][sliceI]);
+         for(int idxJ=0; idxJ<N; ++idxJ) {
+            totalX += std::norm(D->Ux[h][sliceI*N + idxJ]);
+            totalY += std::norm(D->Uy[h][sliceI*N + idxJ]);
+         }
       }
       D->totalEnergyX[iteration][h]=totalX;
       D->totalEnergyY[iteration][h]=totalY;
+      //printf("totalX[%d][%d]=%g\n",iteration,h,totalX);
+      //printf("totalY[%d][%d]=%g\n",iteration,h,totalY);
    }
 
    double area=2.0*M_PI*D->spotSigR*D->spotSigR;

@@ -44,9 +44,13 @@ int main(int argc, char *argv[])
 
 
    } else {
-      //Create "totalEnergy" file
-      FILE *out = fopen("totalEnergy", "w");      
-      fclose(out);
+      //Create "totalEnergy", "twissFile" file
+      FILE *out1 = fopen("totalEnergy", "w");      
+      fclose(out1);
+      FILE *out2 = fopen("twissFile", "w");      
+      fprintf(out2,"#%12s %12s %12s %12s %12s %12s %12s\n",
+                  "z","emitX","betaX","alphaX","emitY","betaY","alphaY");
+      fclose(out2);
 
       //loading  beam
       iteration=0;
@@ -71,8 +75,10 @@ int main(int argc, char *argv[])
          }
       }
 
-      // Update Total Energy
+      // Update Files
       updateTotalEnergy(&D,iteration);
+      calculate_twiss(D,iteration);
+
 
       solveField(&D,iteration);
       //std::cout << "iteration=" << iteration << "after solveField" << std::endl;

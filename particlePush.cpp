@@ -154,7 +154,9 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    double ue=D.ue;
    std::complex<double> U=(1.0-ue*ue + I*2.0*ue)/(1.0+ue*ue);
    double Phi = std::arg(U);
- 
+printf("iteration=%d, Phi=%g\n",iteration,Phi); 
+
+
    double K0_alpha=D.K0_alpha;
    std::complex<double> etaX,etaY;
    if(K0_alpha==1) {
@@ -192,15 +194,16 @@ void push_theta_gamma_3D(Domain &D,int iteration)
             double px=p->px[n]; 
             double py=p->py[n];
             double pr2= px*px + py*py;
-    	      double K2=1.0 + pr2 + (1.0+ue)*K0*K0*0.5*(1.0+ku*ku*0.5*r2);
             double th0=p->theta[n]; 
             double gam0=p->gamma[n];
+    	      double K2=1.0 + pr2 + (1.0+ue)*K0*K0*0.5; //*(1.0+ku*ku*0.5*r2);
+    	      //double K2=1.0 + pr2 + (1.0+ue)*K0*K0*0.5*(1.0+ku*ku*0.5*r2);
 
             double xi2 = std::sqrt(2.0) * K0 / (1.0+K0*K0*0.5*(1.0+ue*ue))
                        * std::sqrt((1+K0_alpha)*(px*px+ue*ue*py*py)+(1-K0_alpha)*(px*px*ue*ue+py*py));
             double B=std::atan(
                2.0*K0_alpha*ue*(px-py)
-               / ((1.0+K0_alpha)*(px*px+ue*ue*py*py)+(1-K0_alpha)*(px*px*ue*ue+py*py))
+               / ((1.0+K0_alpha)*(px+ue*ue*py)+(1-K0_alpha)*(px*ue*ue+py))
             );
             cplx expP=std::exp(I*(B-Phi*0.5));
             cplx expM=std::conj(expP);
@@ -223,6 +226,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   }
 		         }
                */       	   
+
                for(int h=0; h<numHarmony; ++h)  {				
                   Ux[h]=0.0+I*0.0;
                   Uy[h]=0.0+I*0.0;
@@ -257,7 +261,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
 
                   for(int h=0; h<numHarmony; ++h)  {
                      int H = D.harmony[h];
-                     int idx=H*xi/dBessel;
+                     int idx=(1.0*H*xi)/dBessel;
                      w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
                      if(H%2==1)  {  //odd harmony
                         double sign = ((H-1)/2 % 2 ==0) ? 1.0 : -1.0;
@@ -289,13 +293,13 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG + e_mc2*sumEzPart;
                }   //End of Runge-Kutta
                
-               double tmpTh=dz/6.0*(k_th[1] + 2*k_th[2] + 2*k_th[3] + k_th[4]);
+               double tmpTh=dz/6.0 * (k_th[1] + 2.0*k_th[2] + 2.0*k_th[3] + k_th[4]);
                if(tmpTh>dPhi || tmpTh<-dPhi) {
                   printf("myrank=%d,iteration=%d,dTheta=%g,sumEzPart=%g,i=%d,j=%d,k_th[1]=%g,k_th[2]=%g,k_th[3]=%g,k_th[4]=%g,tmpTh=%g\n",myrank,iteration,dPhi,sumEzPart,idxI,idxJ,k_th[1],k_th[2],k_th[3],k_th[4],tmpTh);
                      exit(0);
                } else;
                p->theta[n]+=tmpTh; 
-               double tmpGam=dz/6.0*(k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]); //-dz*wakeE; 
+               double tmpGam=dz/6.0 * (k_gam[1]+2.0*k_gam[2]+2.0*k_gam[3]+k_gam[4]); //-dz*wakeE; 
                p->gamma[n]+=tmpGam;
             }  // End of if(idxI,idxJ)
          }   // End of for(cntN)
@@ -330,6 +334,8 @@ void push_theta_gamma_1D(Domain &D,int iteration)
 
    std::complex<double> U=(1.0-ue*ue + I*2.0*ue)/(1.0+ue*ue);
    double Phi = std::arg(U);
+printf("iteration=%d, Phi=%g\n",iteration,Phi); 
+
    int numHarmony = D.numHarmony;
    double e_mc2 = eCharge/eMass/velocityC/velocityC;	 
 
@@ -402,7 +408,7 @@ void push_theta_gamma_1D(Domain &D,int iteration)
                for(int h=0; h<numHarmony; ++h)  {
                   int H = D.harmony[h];
                   double sign = ((H-1)/2 % 2 ==0) ? 1.0 : -1.0;
-                  int idx=(int)(H*xi/dBessel);
+                  int idx=(1.0*H*xi)/dBessel;
                   w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
                   if(H%2==1)  {  //odd harmony
                      int order=(H-1)*0.5;
@@ -432,7 +438,7 @@ void push_theta_gamma_1D(Domain &D,int iteration)
                MPI_Abort(MPI_COMM_WORLD,1);
             }
             p->theta[n]+=tmpTh; 
-            double tmpGam=dz/6.0*(k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]); //-dz*wakeE; 
+            double tmpGam=dz/6.0 * (k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]); //-dz*wakeE; 
             p->gamma[n]+=tmpGam;
          }
          

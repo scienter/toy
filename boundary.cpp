@@ -52,7 +52,7 @@ void boundary(Domain *D)
             p.head[sp] = new ptclHead{};
             p.head[sp]->pt = nullptr;
         }
-    }
+      }
 
    }
 

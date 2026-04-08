@@ -119,6 +119,7 @@ void push_theta_gamma(Domain *D,int iteration);
 void solveField(Domain *D,int iteration);
 void updateTotalEnergy(Domain *D,int iteration);
 void transversePush(Domain *D,int iteration);
+void calculate_twiss(Domain &D,int iteration);
 
 void saveFieldsToTxt(const Domain &D, const std::string& fileName);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);

@@ -11,7 +11,7 @@ void updateK_quadG(Domain *D,int iteration,double half)
    bool inUnd = false;
    bool inInter = false;
    bool airPosition = false;
-   //QuadList *QD;
+   QuadList QD{};
 
    int myrank, nTasks;
    MPI_Status status;
@@ -63,33 +63,33 @@ void updateK_quadG(Domain *D,int iteration,double half)
       D->currentFlag=false;
    }
 
-/*
    //-------------- update Quad -----------------//
-   g=0;
-   QD=D->qdList;
-   exist=0;
-   x0=z;
-   x1=z+dz*0.5;
-   while(QD->next && exist==0) {
-     for(n=0; n<QD->numbers; n++) {
-       q0=QD->qdStart[n];
-       q1=QD->qdEnd[n];
-       if(q1<=x0 || q0>=x1) ;
-       else {
-         if(x0<q0 && q1<x1)    
-         { g=(q1-q0)/dz*2*QD->g[n]; exist=1; n=QD->numbers; }
-         else if(x0<q0 && q0<x1)  
-         { g=(x1-q0)/dz*2*QD->g[n]; exist=1; n=QD->numbers; }
-         else if(x0<q1 && q1<x1) 
-         { g=(q1-x0)/dz*2*QD->g[n]; exist=1; n=QD->numbers; }
-         else                  
-         { g=1.0*QD->g[n];        exist=1; n=QD->numbers; }
-       }
-     }
-     QD=QD->next; 
+   double g=0;
+   double x0=z;
+   double x1=z+dz*0.5;
+   bool exist=false;
+
+   for (const auto& QD : D->quadList)
+   {
+      for (int n=0; n<QD.numbers; ++n) {
+         double q0=QD.qdStart[n];
+         double q1=QD.qdEnd[n];
+      
+         if(q1<=x0 || q0>=x1) ;
+         else { 
+            if(x0<q0 && q1<x1)    
+            { g=(q1-q0)/dz*2.0*QD.g[n]; exist=true; n=QD.numbers; }
+            else if(x0<q0 && q0<x1)  
+            { g=(x1-q0)/dz*2.0*QD.g[n]; exist=true; n=QD.numbers; }
+            else if(x0<q1 && q1<x1) 
+            { g=(q1-x0)/dz*2.0*QD.g[n]; exist=true; n=QD.numbers; }
+            else                  
+            { g=1.0*QD.g[n];            exist=true; n=QD.numbers; }
+         }
+      }
    }
+     
    D->g=g;
-*/
 }
 
 /*

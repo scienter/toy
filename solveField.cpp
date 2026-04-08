@@ -130,8 +130,8 @@ void solve_Field_U_3D(Domain &D,
       alphaP[i] = -I*dz/(2.0*ks*dx*dx*sX[i]*(sX[i]+sX[i+1]));
    }
    for(int j=1; j<ny-1; ++j) {
-      beta[j]   = -I*dz/(2*ks*dy*dy*sY[j]*(sY[j]+sY[j-1]));
-      betaP[j]  = -I*dz/(2*ks*dy*dy*sY[j]*(sY[j]+sY[j+1]));
+      beta[j]   = -I*dz/(2.0*ks*dy*dy*sY[j]*(sY[j]+sY[j-1]));
+      betaP[j]  = -I*dz/(2.0*ks*dy*dy*sY[j]*(sY[j]+sY[j+1]));
    }
 
    //------------ Field Update ADI -----------------
@@ -155,21 +155,24 @@ void solve_Field_U_3D(Domain &D,
          for(int j=1; j<ny-1; ++j) {
             // cal. dd
             for(int i=1; i<nx-1; ++i) {
-               ddx[i] = - invH * betaP[j] * Un[h][sliceI*N + (j+1)*nx + i]
-                        + (1.0+invH*(betaP[j]+beta[j])) * Un[h][sliceI*N + j*nx + i]
-                        - invH * beta[j] * Un[h][sliceI*N + (j-1)*nx + i]
+               ddx[i] = - betaP[j] * Un[h][sliceI*N + (j+1)*nx + i]
+                        + (H + betaP[j] + beta[j]) * Un[h][sliceI*N + j*nx + i]
+                        - beta[j] * Un[h][sliceI*N + (j-1)*nx + i]
                         + Sc[h][sliceI*N + j*nx + i] * currentFlag;
             }
             
             // cal. CC, DD
             CCx[1] = (H-alphaP[1]-alpha[1]) / alphaP[1];
-            DDx[1] = H * ddx[1] / alphaP[1];
-            for(int i=2; i<nx-1; ++i) {
+            DDx[1] = ddx[1] / alphaP[1];
+            for(int i=2; i<nx-2; ++i) {
                CCx[i] = (H-alphaP[i]-alpha[i]) / alphaP[i]
                        - alpha[i] / (alphaP[i]*CCx[i-1]);
-               DDx[i] = H * ddx[i] / alphaP[i]
+               DDx[i] = ddx[i] / alphaP[i]
                        - alpha[i] * DDx[i-1] / (alphaP[i]*CCx[i-1]);
 	         }
+            CCx[nx-2] = H-alphaP[nx-2]-alpha[nx-2] - 1.0/CCx[nx-3];
+            DDx[nx-2] = ddx[nx-2] - DDx[nx-3]/CCx[nx-3];
+
             // cal. Uc
 	         Uc[j*nx + (nx-2)] = DDx[nx-2] / CCx[nx-2];
 	         for(int i=nx-3; i>0; --i) 
@@ -180,20 +183,23 @@ void solve_Field_U_3D(Domain &D,
          for(int i=1; i<nx-1; ++i) {
             // cal. dd
             for(int j=1; j<ny-1; ++j) {
-               ddy[j] = - invH * alphaP[i] * Uc[j*nx + (i+1)]
-                        + (1.0 + invH * (alphaP[i]+alpha[i])) * Uc[j*nx + i]
-                        - invH * alpha[i] * Uc[j*nx + (i-1)]
+               ddy[j] = - alphaP[i] * Uc[j*nx + (i+1)]
+                        + (H + alphaP[i] + alpha[i]) * Uc[j*nx + i]
+                        - alpha[i] * Uc[j*nx + (i-1)]
                         + Sc[h][sliceI*N + j*nx + i] * currentFlag;
             }
             // cal. CC, DD
             CCy[1] = (H - betaP[1] - beta[1]) / betaP[1];
-            DDy[1] = H * ddy[1] / betaP[1];
+            DDy[1] = ddy[1] / betaP[1];
             for(int j=2; j<ny-1; ++j) {
                CCy[j] = (H - betaP[j] - beta[j]) / betaP[j]
                        - beta[j] / (betaP[j]*CCy[j-1]);
-               DDy[j] = H * ddy[j] / betaP[j]
+               DDy[j] = ddy[j] / betaP[j]
                        - beta[j] * DDy[j-1] / (betaP[j]*CCy[j-1]);
 	         }
+            CCy[ny-2] = H-betaP[ny-2]-beta[ny-2] - 1.0/CCy[ny-3];
+            DDy[ny-2] = ddy[ny-2] - DDy[ny-3]/CCy[ny-3];
+
             // cal. Un
 	         Un[h][sliceI*N + (ny-2)*nx + i] = DDy[ny-2] / CCy[ny-2];
 	         for(int j=ny-3; j>0; --j) 
@@ -280,7 +286,7 @@ void solve_Sc_3D(Domain &D,int iteration)
                        * std::sqrt((1+K0_alpha)*(px*px+ue*ue*py*py)+(1-K0_alpha)*(px*px*ue*ue+py*py));
             double B=std::atan( 
                2.0*K0_alpha*ue*(px-py) 
-               / ((1.0+K0_alpha)*(px*px+ue*ue*py*py)+(1-K0_alpha)*(px*px*ue*ue+py*py))
+               / ((1.0+K0_alpha)*(px+ue*ue*py)+(1-K0_alpha)*(px*ue*ue+py))
             );
             cplx expP=std::exp(I*(B-Phi*0.5));
             cplx expM=std::conj(expP);
@@ -292,10 +298,11 @@ void solve_Sc_3D(Domain &D,int iteration)
             if(idxI>=0 && idxI<nx && idxJ>=0 && idxJ<ny)  {
                for(int h=0; h<numHarmony; ++h)  {
                   int H = D.harmony[h];
+                  double dbH = static_cast<double>(H);
                   if(H%2==1)  {  //odd harmony
                      double sign = ((H-1)/2 % 2 ==0) ? 1.0 : -1.0;
-                     int idx=(H*xi)/dBessel;
-                     w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
+                     int idx=(dbH*xi)/dBessel;
+                     w[1]=(dbH*xi/dBessel)-idx; w[0]=1.0-w[1];
                      int order=(H-1)/2;
                      double J1=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
                      order=(H+1)/2;
@@ -304,18 +311,18 @@ void solve_Sc_3D(Domain &D,int iteration)
                      fy=sign*(J1+K0_alpha*J2);
                   } else {
                      double sign = (H/2 % 2 ==0) ? 1.0 : -1.0;
-                     int idx=(H*xi)/dBessel;
-                     w[1]=(H*xi/dBessel)-idx; w[0]=1.0-w[1];
+                     int idx=(dbH*xi)/dBessel;
+                     w[1]=(dbH*xi/dBessel)-idx; w[0]=1.0-w[1];
                      int order=(H-2)/2;
                      double J1=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
                      order=H/2;
                      double J2=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
                      order=(H+2)/2;
                      double J3=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
-                     fx=sign*xi2*H*0.5*(expM*(J1-K0_alpha*J2)+expP*(J2-K0_alpha*J3));
-                     fy=sign*xi2*H*0.5*(expM*(J1+K0_alpha*J2)+expP*(J2+K0_alpha*J3));
+                     fx=sign*xi2*dbH*0.5*(expM*(J1-K0_alpha*J2)+expP*(J2-K0_alpha*J3));
+                     fy=sign*xi2*dbH*0.5*(expM*(J1+K0_alpha*J2)+expP*(J2+K0_alpha*J3));
                   }
-                  cplx macro_expTheta_coef=macro*coef*std::exp(-I*(1.0*H)*(theta+Phi*0.5))/gam;
+                  cplx macro_expTheta_coef=dbH*macro*coef*std::exp(-I*dbH*(theta+Phi*0.5))/gam;
                   for(int ii=0; ii<2; ++ii)
                      for(int jj=0; jj<2; ++jj) { 
                         D.ScUx[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]
