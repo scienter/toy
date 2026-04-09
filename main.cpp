@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
       if(D.dimension==3) 
          transversePush(&D,iteration);
-      
+
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
       else {
          std::cout << "iteration=" << iteration

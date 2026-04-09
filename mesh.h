@@ -31,7 +31,7 @@ struct UndList  {
    UndMode type = UndMode::Unknown;
 
    double lambdaU=0.0;
-   double linTaper,quadTaper,slopeK,ue=0.0;
+   double linTaper,quadTaper,slopeK,ue;
    int K0_alpha=1;    // 1:By 0:Bx
    int numbers=0;
    bool air;

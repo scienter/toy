@@ -309,6 +309,7 @@ void solve_Sc_3D(Domain &D,int iteration)
                      double J2=D.BesselJ[idx][order]*w[0]+D.BesselJ[idx+1][order]*w[1];
                      fx=sign*(J1-K0_alpha*J2);
                      fy=sign*(J1+K0_alpha*J2);
+
                   } else {
                      double sign = (H/2 % 2 ==0) ? 1.0 : -1.0;
                      int idx=(dbH*xi)/dBessel;
