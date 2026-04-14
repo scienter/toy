@@ -282,7 +282,7 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_qrng *q2 = nullptr;
 
    //q1 = gsl_qrng_alloc(gsl_qrng_niederreiter_2,3);
-   q1=gsl_qrng_alloc(gsl_qrng_sobol,1);	
+   q1=gsl_qrng_alloc(gsl_qrng_sobol,3);	
    q2=gsl_qrng_alloc(gsl_qrng_sobol,2);	
 
    unsigned long randskip = 0;   
@@ -294,11 +294,9 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       srand(static_cast<unsigned int>(time(nullptr)));
       randskip = static_cast<unsigned long>(rand()) % (nTasks * 2UL);
    }
-   double v1[1] = {0.0};
-   double v2[2] = {0.0};
+   double v1[3] = {0.0};
    for (unsigned long ii = 0; ii < randskip; ++ii) {
       gsl_qrng_get(q1, v1);
-      gsl_qrng_get(q2, v2);
    }
 
    int minI=D.minI;
@@ -349,10 +347,9 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       unsigned long ptclIdx=0;
       for(unsigned int b=0; b<beamlets; ++b)  {
          gsl_qrng_get(q1,v1);
-         gsl_qrng_get(q2,v2);
          double th=v1[0];           
-         double gam= (v2[0]==0.0) ? 1e-10 : v2[0];
-         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v2[1]*2.0*M_PI);
+         double gam= (v1[1]==0.0) ? 1e-10 : v1[1];
+         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v1[2]*2.0*M_PI);
          gam=gamma0+dGam*tmp;
          double theta0=th*dPhi;
          //double theta0=th*(dPhi-(numInBeamlet-1.0)/(numInBeamlet*1.2*M_PI);

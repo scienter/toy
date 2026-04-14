@@ -19,10 +19,6 @@ void push_theta_gamma(Domain *D,int iteration)
   case 1 :
     push_theta_gamma_1D(*D,iteration);
     break;
-
-  case 2 :
-//    particlePush2D(&D,iteration);
-    break;
   case 3 :
     push_theta_gamma_3D(*D,iteration);
     break;
@@ -121,6 +117,76 @@ void transversePush(Domain *D,int iteration)
 
 }
 
+void drift_theta_gamma(Domain &D,int iteration)
+{
+   int myrank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   int nx=D.nx, ny=D.ny, N=nx*ny;
+   double dz=D.dz;    
+   double ks=D.ks;   
+   double ku=D.ku;
+   double gamR=D.gamR;
+   double dx=D.dx, dy=D.dy;
+   double minX=D.minX, minY=D.minY;
+
+   int startI=1, endI=D.subSliceN+1;
+   int numHarmony=D.numHarmony;
+   
+   double K0=D.K0;
+   double ue=D.ue;
+   double wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
+   std::vector<cplx> Ux(numHarmony),Uy(numHarmony);
+
+   printf("iteration=%d, driftON, K0=%g\n",iteration,K0);
+   
+   for(int s=0; s<D.nSpecies; ++s)
+   {
+      for(int sliceI=startI; sliceI<endI; ++sliceI)
+      {
+         auto& p = D.particle[sliceI].head[s]->pt;         
+         const size_t cnt=p->x.size();
+         for(size_t n=0; n<cnt; ++n) {
+            double x0=p->x[n];   
+            double y0=p->y[n];
+            double r2= x0*x0 + y0*y0;
+            double px=p->px[n]; 
+            double py=p->py[n];
+            double pr2= px*px + py*py;
+            double th0=p->theta[n]; 
+            double gam0=p->gamma[n];
+    	      double K2=1.0 + pr2; //*(1.0+ku*ku*0.5*r2);
+   
+            int idxI=(int)((x0-minX)/dx);
+	         int idxJ=(int)((y0-minY)/dy);
+            wx[1]=(x0-minX)/dx-idxI; wx[0]=1.0-wx[1];
+            wy[1]=(y0-minY)/dy-idxJ; wy[0]=1.0-wy[1];
+	         if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
+               for(int h=0; h<numHarmony; ++h)  {				
+                  Ux[h]=0.0+I*0.0;
+                  Uy[h]=0.0+I*0.0;
+                  for(int ii=0; ii<2; ++ii) 
+                     for(int jj=0; jj<2; ++jj)  {
+      			         Ux[h]+=D.Ux[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+      			         Uy[h]+=D.Uy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+                     }
+               }
+               double sumU2=0.0;
+               for(int h=0; h<numHarmony; ++h)  {
+                  int H = D.harmony[h];
+                  double absUx2 = std::norm(Ux[h]);
+                  double absUy2 = std::norm(Uy[h]);
+                  sumU2 += (absUx2 + absUy2)/(2.0*H*H);
+               }
+               double tmp = ku-ks/(2.0*gamR*gamR)*(K2+sumU2);
+               p->theta[n]+=tmp*dz;
+            }
+         }    //End of for(n)
+      }       //End of for(sliceI)
+   }          //End of for(s)
+}
+
+
 void push_theta_gamma_3D(Domain &D,int iteration)
 {
    ptclList *p;
@@ -135,8 +201,10 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    int maxI=D.maxI;
    int nx = D.nx;
    int ny = D.ny;
+   int nr = D.nr;
    int N=nx*ny;
    int L=D.SCLmode;
+   int F=D.SCFmode;
 
    double dz=D.dz;    
    double dx=D.dx; 
@@ -170,7 +238,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    }
 
    double coefList[5]={0,0,0.5,0.5,1},k_th[5]={0,0,0,0,0},k_gam[5]={0,0,0,0,0};	 
-   double w[2]={0.0,0.0}, wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
+   double w[2]={0.0,0.0}, wx[2]={0.0,0.0}, wy[2]={0.0,0.0}, wr[2]={0.0,0.0};
    double sumEzPart=0.0;
    //double xi = ks/ku*K0*K0*(1.0-ue*ue)/(8.0*gam*gam);
    double xi = 0.25*K0*K0*(1.0-ue*ue)/(1.0+(1.0+ue*ue)*K0*K0*0.5);
@@ -210,20 +278,26 @@ void push_theta_gamma_3D(Domain &D,int iteration)
             wx[1]=(x0-minX)/dx-idxI; wx[0]=1.0-wx[1];
             wy[1]=(y0-minY)/dy-idxJ; wy[0]=1.0-wy[1];
 	         if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
-               /*
+               
                double r=std::sqrt(r2);
-               int idxR = r/dr;
-               wr[1]=(r/dr-idxR); wr[0]=1.0-wr[1];
-               if(idxR+1<D->nr) {
+               int idxR = r/dr + 0.5;
+               wr[1]=(r*r/(dr*dr)-idxR*idxR)/(2.0*idxR);  wr[0]=1.0-wr[1];
+               if(idxR>0 && idxR<nr) {
                   for(int ll=0; ll<L; ++ll) {
-  		               Em[ll]=0.0+I*0.0;
-                     for(f=0; f<F; f++) 
-                        for(jj=0; jj<2; jj++) 
-		                     Em[ll]+=D->Ez[sliceI][indexJ+jj][ll][f]*wr[jj];
+                     Em[ll]=0.0+I*0.0;
+                     for(int f=0; f<F; ++f)
+                        for(int jj=0; jj<2; ++jj)
+                           Em[ll]+=D.Ez[ll][sliceI*nr*F + nr*f + idxR+jj]*wr[jj];
                   }
-		         }
-               */       	   
-
+               } else if(idxR==0) {
+                  for(int ll=0; ll<L; ++ll) {
+                     Em[ll]=0.0+I*0.0;
+                     for(int f=0; f<F; ++f)
+                        for(int jj=0; jj<2; ++jj)
+                           Em[ll]+=D.Ez[ll][sliceI*nr*F + nr*f + idxR+jj];
+                  }
+               }
+               
                for(int h=0; h<numHarmony; ++h)  {				
                   Ux[h]=0.0+I*0.0;
                   Uy[h]=0.0+I*0.0;
@@ -251,10 +325,10 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   double sumG=0.0;
 
                   sumEzPart = 0.0;
-                  //for(int ll=0; ll<L; ++ll)  {
-                  //   double tmp=std::real(Em[ll]*std::exp(I*(ll+1.0)*th));
-                  //   sumEzPart += 2.0*tmp;
-                  //}
+                  for(int ll=0; ll<L; ++ll)  {
+                     double tmp=std::real(Em[ll]*std::exp(I*(ll+1.0)*th));
+                     sumEzPart += 2.0*tmp;
+                  }
 
                   for(int h=0; h<numHarmony; ++h)  {
                      int H = D.harmony[h];
@@ -295,6 +369,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   printf("myrank=%d,iteration=%d,dTheta=%g,sumEzPart=%g,i=%d,j=%d,k_th[1]=%g,k_th[2]=%g,k_th[3]=%g,k_th[4]=%g,tmpTh=%g\n",myrank,iteration,dPhi,sumEzPart,idxI,idxJ,k_th[1],k_th[2],k_th[3],k_th[4],tmpTh);
                      exit(0);
                }
+
                p->theta[n]+=tmpTh; 
                double tmpGam=dz/6.0 * (k_gam[1]+2.0*k_gam[2]+2.0*k_gam[3]+k_gam[4]); //-dz*wakeE; 
                p->gamma[n]+=tmpGam;

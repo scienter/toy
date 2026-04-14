@@ -69,6 +69,7 @@ typedef struct _Domain
    double minX,maxX,minY,maxY,minZ,maxZ;
    double Lz,dz;   
    double dx,dy;
+   double gamR;
 
    // ABC condition
    int abcN;
@@ -95,6 +96,7 @@ typedef struct _Domain
    
    //Space charge
    int SCLmode,SCFmode;
+   int nr;
    double dr;
 
    //Bessel Table
@@ -103,7 +105,9 @@ typedef struct _Domain
    std::vector<std::vector<double>> BesselJ;
 
    //Seed
-   double P0,duration,spotSigR,a0,zR,focus;
+   int loadH;
+   double laserAlpha;
+   double P0,duration,spotSigR,a0,zR,focus,polarity,laserPsi;
 
 }  Domain; 
 
@@ -116,13 +120,15 @@ void boundary(Domain *D);
 void loadBeam(Domain *D,LoadList &LL,int s,int iteration);
 void updateK_quadG(Domain *D,int iteration,double half);
 void push_theta_gamma(Domain *D,int iteration);
+void drift_theta_gamma(Domain &D,int iteration);
 void solveField(Domain *D,int iteration);
 void updateTotalEnergy(Domain *D,int iteration);
+void updatebFactor(const Domain &D, int iteration);
 void transversePush(Domain *D,int iteration);
 void calculate_twiss(Domain &D,int iteration);
 
 void saveFieldsToTxt(const Domain &D, const std::string& fileName);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
-
+void loadSeed(Domain *D,int iteration);
 
 #endif   //MESH_H

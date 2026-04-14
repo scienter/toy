@@ -39,7 +39,7 @@ void boundary(Domain *D)
    D->Uy=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
    D->ScUx=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
    D->ScUy=complexMemoryFlat(D->numHarmony,(D->subSliceN+2)*D->nx*D->ny);
-   D->Ez=complexMemoryFlat(D->SCLmode,(D->subSliceN+2)*D->nx);
+   D->Ez=complexMemoryFlat(D->SCLmode,D->SCFmode*(D->subSliceN+2)*D->nr);
    
    D->totalEnergyX=doubleMemoryFlat(D->maxStep,D->numHarmony);
    D->totalEnergyY=doubleMemoryFlat(D->maxStep,D->numHarmony);

@@ -6,9 +6,10 @@
 #include <complex>       // std::complex
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <hdf5.h>
 #include <hdf5_hl.h>
-
+#include <iomanip>
 #include "mesh.h"        // Domain, parameterSetting 등이 정의된 헤더 가정
 
 int main(int argc, char *argv[])
@@ -44,13 +45,24 @@ int main(int argc, char *argv[])
 
 
    } else {
-      //Create "totalEnergy", "twissFile" file
+      //Create "totalEnergy", "twissFile", "bFactor" file
       FILE *out1 = fopen("totalEnergy", "w");      
       fclose(out1);
       FILE *out2 = fopen("twissFile", "w");      
       fprintf(out2,"#%12s %12s %12s %12s %12s %12s %12s\n",
                   "z","emitX","betaX","alphaX","emitY","betaY","alphaY");
       fclose(out2);
+      std::string fileName3 = "bFactor";
+      std::ofstream out3(fileName3);     
+      out3 << "#z        " ;
+      for(int h=0; h<D.numHarmony; ++h) {
+         out3 << std::setw(10) << "harmony:" << D.harmony[h];
+      }
+      out3 << "\n";
+      out3.close();
+
+      //loading Seed pulse
+      loadSeed(&D,iteration);
 
       //loading  beam
       iteration=0;
@@ -61,8 +73,6 @@ int main(int argc, char *argv[])
       }
 
    }
-
-
 
    while(iteration<D.maxStep) 
    {
@@ -78,7 +88,7 @@ int main(int argc, char *argv[])
       // Update Files
       updateTotalEnergy(&D,iteration);
       calculate_twiss(D,iteration);
-
+      updatebFactor(D,iteration);
 
       solveField(&D,iteration);
       //std::cout << "iteration=" << iteration << "after solveField" << std::endl;
@@ -97,15 +107,16 @@ int main(int argc, char *argv[])
 
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
       else {
+         drift_theta_gamma(D,iteration);
          std::cout << "iteration=" << iteration
                    << ", driftON"
                    << std::endl;
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
 
-      if(iteration%10==0) {
+      if(iteration%1==0) {
          if(myrank==0) 
-            printf("iteration=%d, z=%g\n",iteration,iteration*D.dz);
+            printf("iteration=%d, z=%g, K0=%g\n",iteration,iteration*D.dz,D.K0);
       }
       iteration++;
    }

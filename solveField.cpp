@@ -43,6 +43,7 @@ void shiftField(Domain D,int iteration)
 }
 */
 
+std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, int size);
 
 
 void solveField(Domain *D,int iteration)
@@ -221,22 +222,21 @@ void solve_Sc_3D(Domain &D,int iteration)
    int startI = 1; 
    int endI = D.subSliceN+1;
    int numHarmony = D.numHarmony;
+   int L = D.SCLmode, F = D.SCFmode;
 
    double minX=D.minX;	
    double minY=D.minY;
-   int nx=D.nx;   
-   int ny=D.ny;
-   double dx=D.dx;
-   double dy=D.dy;
-   double dz=D.dz;
+   int nx=D.nx, ny=D.ny, nr=D.nr;
+   double dx=D.dx, dy=D.dy, dz=D.dz, dr=D.dr;
    
    double K0=D.K0;
    double ks=D.ks; 
    double ku=D.ku;
    double dBessel = D.dBessel;
    double ue=D.ue;
+   double gamR=D.gamR;
    cplx fx = 0.0 +I*0.0;                                                                     cplx fy = 0.0 +I*0.0;
-   double w[2]={0.0,0.0}, wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
+   double w[2]={0.0,0.0}, wx[2]={0.0,0.0}, wy[2]={0.0,0.0}, wr[2]={0.0,0.0};
 
 
 
@@ -265,8 +265,9 @@ void solve_Sc_3D(Domain &D,int iteration)
             D.ScUy[h][sliceI*N + j]=0.0+I*0.0;
          }
 
-   double coef=dz*eCharge*eCharge*mu0*K0*std::sqrt(1.0+ue*ue)/(4.0*ks*eMass*(D.lambda0*D.numSlice)*dx*dy);
+   double coef_U=dz*eCharge*eCharge*mu0*K0*std::sqrt(1.0+ue*ue)/(4.0*ks*eMass*(D.lambda0*D.numSlice)*dx*dy);
    double xi = 0.25*K0*K0*(1.0-ue*ue)/(1.0+(1.0+ue*ue)*K0*K0*0.5);
+   double coef_Ez = eCharge*velocityC*velocityC*mu0*ks*(1.0+0.5*(1.0+ue*ue)*K0*K0)/(2.0*M_PI*D.lambda0*D.numSlice*gamR*gamR);
 
    int s=0;
    for(auto& LL : D.loadList) {
@@ -323,7 +324,7 @@ void solve_Sc_3D(Domain &D,int iteration)
                      fx=sign*xi2*dbH*0.5*(expM*(J1-K0_alpha*J2)+expP*(J2-K0_alpha*J3));
                      fy=sign*xi2*dbH*0.5*(expM*(J1+K0_alpha*J2)+expP*(J2+K0_alpha*J3));
                   }
-                  cplx macro_expTheta_coef=dbH*macro*coef*std::exp(-I*dbH*(theta+Phi*0.5))/gam;
+                  cplx macro_expTheta_coef=dbH*macro*coef_U*std::exp(-I*dbH*(theta+Phi*0.5))/gam;
                   for(int ii=0; ii<2; ++ii)
                      for(int jj=0; jj<2; ++jj) { 
                         D.ScUx[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]
@@ -336,90 +337,91 @@ void solve_Sc_3D(Domain &D,int iteration)
          }	         //End of for(n)
       }		//End of for(sliceI)
 
-      /*
+      
       //Calculate Ez space charge
+      std::vector<std::vector<cplx>> Sc=complexMemoryFlat(L,F*nr);
+      std::vector<double> a(nr),b(nr),c(nr);
+      std::vector<cplx> d(nr);
+      double A = ks*ks*(1.0+0.5*(1.0+ue*ue)*K0*K0)/(gamR*gamR)*dr*dr;
 
-      for(i=0; i<=endI; i++)
-         for(j=0; j<nr; j++) 
-            for(l=0; l<L; l++)
-               for(f=0; f<F; f++)
-                  D->Ez[i][j][l][f]=0.0+I*0.0;
+      for(int sliceI=startI; sliceI<endI; ++sliceI)
+      {
+         for(int l=0; l<L; ++l)
+            for(int j=0; j<nr*F; ++j)
+               Sc[l][j]=0.0+I*0.0;
 
-      if(D->SCONOFF == OFF) ;
-      else {
-         coef=eCharge*velocityC*velocityC*mu0*ku/(1+K0*K0*0.5)/M_PI/dr/dr/(D->lambda0*D->numSlice);
+         auto& p = D.particle[sliceI].head[s]->pt;
+         const size_t cnt=p->x.size();
+         for(size_t n=0; n<cnt; ++n) {
+            double macro=p->weight;
+            double x=p->x[n];
+            double y=p->y[n];
+            double theta=p->theta[n];
 
-         for(i=startI; i<endI; i++)
-         {
-            for(j=0; j<nr; j++)
-               for(l=0; l<L; l++)
-                  for(f=0; f<F; f++)
-                     Sc[j][l][f]=0.0+I*0.0;
-		
-            p=D->particle[i].head[s]->pt;
-            while(p) {
-               macro=p->weight;
-               for(n=0; n<numInBeamlet; n++) {
-                  x=p->x[n];         y=p->y[n];   
-                  theta=p->theta[n]; gam=p->gamma[n];
-                  if(x==0) phi = 0;
-                  else     phi = atan2(y,x);
-
-                  K=K0*(1.0+ku*ku*0.5*(x*x+y*y));
-                  r = sqrt(x*x+y*y);
-                  j=(int)(r/dr+0.5);
-                  wy[1]=r/dr-(int)(r/dr);  wy[0]=1.0-wy[1];
-                  if(j>0 && j<nr) {
-                     for(l=0; l<L; l++) 
-                        for(f=0; f<F; f++) {
-                           coefComp=I*coef*cexp(-I*(l+1)*theta-I*f*phi)*macro*(1+K*K*0.5)*(l+1)/(2.0*j);
-                           for(jj=0; jj<2; jj++) Sc[j+jj][l][f]+=coefComp*wy[jj];
-                        }
+            double phi = (x==0.0) ? 0.0 : std::atan2(y,x);
+            double r = std::sqrt(x*x+y*y);
+            int idxR = r/dr+0.5;
+            wr[1]=(r*r/(dr*dr)-idxR*idxR)/(2.0*idxR);  wr[0]=1.0-wr[1];
+            
+            if(idxR>0 && idxR<nr) {
+               for(int l=0; l<L; ++l)
+                  for(int f=0; f<F; ++f) {
+                     cplx coefComp=I * coef_Ez * (l+1.0) * std::exp(-I*((l+1)*theta + f*phi)) * macro / (1.0*idxR);
+                     for(int jj=0; jj<2; ++jj)
+                        Sc[l][f*nr + idxR+jj]+=coefComp*wr[jj];
                   }
-               }    //End of for(n)            
-               p=p->next;
-            }       //End of while(p)
+            } else if(idxR==0) {
+               for(int l=0; l<L; ++l) {
+                  //f=0
+                  cplx coefComp=I * coef_Ez * (l+1.0) * std::exp(-I*((l+1)*theta)) * macro;
+                  Sc[l][idxR]+=coefComp;
+               
+                  for(int f=1; f<F; ++f) 
+                     Sc[l][f*nr + idxR]=0.0 + I*0.0;
+               }
+            }
+              
+         }   //End of for(n)
 
-            // recalculate 
-            for(l=0; l<L; l++)
-               for(f=0; f<F; f++)  {
-                  j = nr-1;
-                  y = j*dr; x=0.0;			      
-                  K=K0*(1.0+ku*ku*0.5*(x*x+y*y));
-                  alpha = 2.0*(l+1)*(l+1)*k0*ku*(1+K*K*0.5)/(1+K0*K0*0.5);
-                  Lc = -1.0/(dr*dr*j)*(2*j + f*f*log((j+0.5)/(j-0.5))) - alpha;
-                  Lm = 1.0/(dr*dr*j)*(j-0.5);
-                  cc[j]=Lm/Lc;
-                  dd[j]=Sc[j][l][f];
+         for(int f=0; f<F; ++f)
+            for(int l=0; l<L; ++l) {
+               // Thomas Algorithm
+               if(f==0) {
+                  a[0]=1.0;
+                  b[0]=-( 1.0 + (l+1.0)*(l+1.0)*A/8.0 );
+                  c[0]=0.0;
+                  d[0]=Sc[l][0];
+               } else {
+                  a[0]=0.0;
+                  b[0]=1.0;
+                  c[0]=0.0;
+                  d[0]=0.0;
+               }
+               for(int j=1; j<nr-1; ++j) {
+                  a[j]=j+0.5;
+                  b[j]=-2.0*j-(l+1.0)*(l+1.0)*A*j-f*f*std::log((j+0.5)/(j-0.5));
+                  c[j]=j-0.5;
+                  d[j]=Sc[l][f*nr + j];
+               }
+                  a[nr-1]=0.0;
+                  b[nr-1]=1.0;
+                  c[nr-1]=0.0;
+                  d[nr-1]=0.0;
 
-                  for(j=nr-2; j>=1; j--)  {
-                     y = j*dr; x=0.0;			      
-                     K=K0*(1.0+ku*ku*0.5*(x*x+y*y));
-                     alpha = 2.0*(l+1)*(l+1)*k0*ku*(1+K*K*0.5)/(1+K0*K0*0.5);
-                     Lp = 1.0/(dr*dr*j)*(j+0.5);
-                     Lc = -1.0/(dr*dr*j)*(2*j + f*f*log((j+0.5)/(j-0.5))) - alpha;
-                     cc[j]=Lm/(Lc-Lp*cc[j+1]);
-                     dd[j]=(Sc[j][l][f]-Lp*dd[j+1])/(Lc-Lp*cc[j+1]);
-                  }
+               //Forward
+               for(int j=1; j<nr; ++j) {
+                  double w=c[j]/b[j-1];
+                  b[j] -= w*a[j-1];
+                  d[j] -= w*d[j-1];
+               }
+               //Backward
+               D.Ez[l][f*nr + nr-1]=0.0+I*0.0;
+               for(int j=nr-2; j>=0; --j)  {
+                  D.Ez[l][sliceI*F*nr + f*nr + j] = (d[j]-a[j]*D.Ez[l][f*nr + j+1])/b[j];
+               }
+            }   //End of for(l)
 
-                  j=0;
-                     y = j*dr; x=0.0;			      
-                     K=K0*(1.0+ku*ku*0.5*(x*x+y*y));
-                     alpha = 2.0*(l+1)*(l+1)*k0*ku*(1+K*K*0.5)/(1+K0*K0*0.5);
-                     Lp = 2.0/(dr*dr);
-                     Lc = -2.0/(dr*dr) - alpha;
-                     cc[j]=0.0;
-                     dd[j]=(Sc[j][l][f]-Lp*dd[j+1])/(Lc-Lp*cc[j+1]);
-
-                  j=0;
-                     D->Ez[i][j][l][f] = dd[j];
-                  for(j=1; j<nr; j++)
-                     D->Ez[i][j][l][f] = dd[j]-cc[j]*D->Ez[i][j-1][l][f];
-	       }   //End of for(f)
-         }		//End of for(i)
-
-      }   //End of if(SCONOFF==ON)
-      */  
+      }   // Enf of for(sliceI)
       s++;
    }
 

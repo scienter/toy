@@ -55,13 +55,14 @@ void updateK_quadG(Domain *D,int iteration,double half)
    D->ku=2*M_PI/lambdaU;
    D->undType=undType;
 
+   if(K0==0.0) airPosition=true;
    if(inUnd==false && inInter==false) airPosition=true;
    if(inUnd==true) D->currentFlag=true;
    if(airPosition==true) {
       D->ku=0.0;       // for drift calculation
       D->driftFlag=true;
       D->currentFlag=false;
-   }
+   } 
 
    //-------------- update Quad -----------------//
    double g=0;

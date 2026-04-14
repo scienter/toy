@@ -162,6 +162,7 @@ void parameterSetting(Domain *D,const char *input)
    D->undType = UL.type;
    D->lambdaU = UL.lambdaU;
    D->ku = 2.0*M_PI/UL.lambdaU;
+   D->gamR = std::sqrt( 0.5*D->ks/D->ku * (1+0.5*(1+D->ue*D->ue)*D->K0*D->K0) );
 
    // Quad parameter setting
    rank=1;
@@ -174,11 +175,19 @@ void parameterSetting(Domain *D,const char *input)
    D->nQuad = rank-1;
 
    //space charge
-   if(FindParameters("Space_charge",1,"number_fourier_mode",input,str)) D->SCFmode=atoi(str);
+   if(FindParameters("Domain",1,"number_azimuthal_mode",input,str)) D->SCFmode=atoi(str);
    else  D->SCFmode=1;
-   if(FindParameters("Space_charge",1,"number_longitudinal_mode",input,str)) D->SCLmode=atoi(str);
+   if(FindParameters("Domain",1,"number_longitudinal_mode",input,str)) D->SCLmode=atoi(str);
    else  D->SCLmode=1;
+   if(FindParameters("Domain",1,"radial_grids",input,str)) D->nr=atoi(str);
+   else D->nr = std::sqrt(D->nx*D->nx+D->ny*D->ny);
    D->dr = sqrt((D->maxX-D->minX)*(D->maxX-D->minX)+(D->maxY-D->minY)*(D->maxY-D->minY))/(1.0*D->nx);
+   if(D->dimension==1) {
+      D->nr=1;
+      D->dr=0.0;
+      D->SCFmode=1;
+   }
+
 
    // Bessel Table
    if(FindParameters("Bessel_table",1,"num_grids",input,str)) D->bn=atoi(str);
@@ -193,7 +202,21 @@ void parameterSetting(Domain *D,const char *input)
    else  { printf("In [Seed], rms_duration=? [fs].\n");  fail=true;   }
    if(FindParameters("Seed",1,"focus",input,str)) D->focus=atof(str);
    else  { printf("In [Seed], focus=? [m].\n");  fail=true;   }
-
+   if(FindParameters("Seed",1,"loading_harmonics",input,str)) D->loadH=atoi(str);
+   else  { printf("In [Seed], loading_harmonics=? [example : 1].\n");  fail=true;   }
+   double ue=0.0;
+   if(FindParameters("Seed",1,"polarity",input,str)) ue=atof(str);
+   else  { printf("In [Seed], polarity=? [0 ~ 1].\n");  fail=true;   }
+   if(FindParameters("Seed",1,"laser_alpha",input,str)) D->laserAlpha=atof(str);
+   else  { printf("In [Seed], laser_alpha=? [1 : X axis, -1 : Y axis].\n");  fail=true;   }
+   double area=2.0*M_PI*D->spotSigR*D->spotSigR;
+   D->a0=sqrt(D->P0*2.0*Z0/area)*eCharge/(eMass*velocityC*velocityC*D->ks*D->loadH);
+   printf("a0=%g\n",D->a0);
+   // I(r) = I0 * exp(-r^2 / (2 * sigR^2) )  ==> P0 = I0 * 2*pi*sigR^2
+   // E = sqrt(2*I0 / (c*eps0)) = sqrt(2*I0*Z0)
+   D->zR = 2.0 * D->spotSigR * D->spotSigR * D->ks * (1.0*D->loadH);
+   std::complex<double> U=(1.0-ue*ue + I*2.0*ue)/(1.0+ue*ue);
+   D->laserPsi = std::arg(U);
 
    // Extra setting
 

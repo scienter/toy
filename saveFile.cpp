@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <mpi.h>
 #include "mesh.h"
 
 void saveFieldsToTxt(const Domain &D, const std::string& fileName)
@@ -101,3 +102,72 @@ void saveParticlesToTxt(const Domain &D, int species, const std::string& fileNam
    out.close();
    std::cout << "Particles saved to " << fileName << std::endl;
 }
+
+
+
+
+void updatebFactor(const Domain &D, int iteration)
+{
+   int myrank, nTasks;
+   MPI_Status status;
+   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   int startI=1, endI=D.subSliceN+1;
+   int numHarmony = D.numHarmony;
+
+   double z = iteration * D.dz + D.minZ;
+
+   std::vector<cplx> b(numHarmony, {0.0,0.0});
+   double totalN=0.0;
+
+   int h=0;
+      double H=D.harmony[h];
+      for (int sliceI = startI; sliceI < endI; ++sliceI) 
+      {
+         for(int s=0; s<D.nSpecies; s++) {
+            auto& p = D.particle[sliceI].head[s]->pt;      
+            size_t nParticles = p->x.size();
+            double weight=p->weight;
+            for (size_t n = 0; n < nParticles; ++n) {
+               double theta = p->theta[n];
+               b[h] += std::exp(I*H*theta) * weight;
+               totalN += weight;
+            }
+         }
+      }
+   
+   for (h=1; h<D.numHarmony; ++h) {
+      H=D.harmony[h];
+      for (int sliceI = startI; sliceI < endI; ++sliceI) 
+      {
+         for(int s=0; s<D.nSpecies; s++) {
+            auto& p = D.particle[sliceI].head[s]->pt;      
+            size_t nParticles = p->x.size();
+            double weight=p->weight;
+            for (size_t n = 0; n < nParticles; ++n) {
+               double theta = p->theta[n];
+               b[h] += std::exp(I*H*theta) * weight;
+            }
+         }
+      }
+   }
+
+   if (myrank == 0) {
+      FILE *out = fopen("bFactor", "a+");
+      if (out == nullptr) {
+         std::cerr << "Error: cannot open totalEnergy file" << std::endl;
+         return;
+      }
+      
+      fprintf(out, "%10.4g", z);
+      
+      for (int h = 0; h < numHarmony; ++h)
+         fprintf(out, " %10.4g", std::abs(b[h]/totalN) );
+      
+      fprintf(out, "\n");
+      fclose(out);
+   }
+
+}
+
