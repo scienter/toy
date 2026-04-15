@@ -5,7 +5,6 @@
 #include <mpi.h>
 #include <gsl/gsl_sf_bessel.h>
 
-//void transversePush_3D(Domain *D,int iteration);
 void push_theta_gamma_1D(Domain &D,int iteration);
 void push_theta_gamma_3D(Domain &D,int iteration);
 //void drift_theta_gamma_3D(Domain *D,int iteration);
@@ -138,7 +137,7 @@ void drift_theta_gamma(Domain &D,int iteration)
    double wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
    std::vector<cplx> Ux(numHarmony),Uy(numHarmony);
 
-   printf("iteration=%d, driftON, K0=%g\n",iteration,K0);
+   //printf("iteration=%d, driftON, K0=%g\n",iteration,K0);
    
    for(int s=0; s<D.nSpecies; ++s)
    {
@@ -194,28 +193,20 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    int myrank;
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
    
-   int startI=1;       
-   int endI=D.subSliceN+1;
+   int startI=1, endI=D.subSliceN+1;
    int numHarmony=D.numHarmony;
-   int minI=D.minI;
-   int maxI=D.maxI;
-   int nx = D.nx;
-   int ny = D.ny;
-   int nr = D.nr;
+   int minI=D.minI, maxI=D.maxI;
+   int nx = D.nx, ny = D.ny, nr = D.nr;
    int N=nx*ny;
    int L=D.SCLmode;
    int F=D.SCFmode;
 
-   double dz=D.dz;    
-   double dx=D.dx; 
-   double dy=D.dy; 
-   double dr=D.dr;
+   double dz=D.dz, dx=D.dx, dy=D.dy, dr=D.dr;
    double ku=D.ku;    
    double ks=D.ks;
    double K0=D.K0;
    double dBessel = D.dBessel;
-   double minX=D.minX;  
-   double minY=D.minY;
+   double minX=D.minX, minY=D.minY;
    double dPhi=2*M_PI*D.numSlice;
    double e_mc2 = eCharge/eMass/velocityC/velocityC;	 
 
@@ -325,10 +316,8 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   double sumG=0.0;
 
                   sumEzPart = 0.0;
-                  for(int ll=0; ll<L; ++ll)  {
-                     double tmp=std::real(Em[ll]*std::exp(I*(ll+1.0)*th));
-                     sumEzPart += 2.0*tmp;
-                  }
+                  for(int ll=0; ll<L; ++ll)
+                     sumEzPart += 2.0 * std::real(Em[ll]*std::exp(I*(ll+1.0)*th));
 
                   for(int h=0; h<numHarmony; ++h)  {
                      int H = D.harmony[h];

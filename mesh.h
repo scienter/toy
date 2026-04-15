@@ -62,7 +62,7 @@ typedef struct _Domain
 
 
    //Save option
-   int maxStep;
+   int maxStep,saveStep,saveStart;
 
    //Domain box
    int sliceN,subSliceN,nx,ny,minI,maxI;
@@ -74,6 +74,11 @@ typedef struct _Domain
    // ABC condition
    int abcN;
    double abcSig;
+   std::vector<double> ABCsigX, ABCsigY;
+   std::vector<cplx>   ABCsX, ABCsY;
+   std::vector<cplx>   ABCalpha, ABCalphaP;
+   std::vector<cplx>   ABCbeta, ABCbetaP;
+
 
    //Electron beam
    int nSpecies=0;
@@ -130,5 +135,5 @@ void calculate_twiss(Domain &D,int iteration);
 void saveFieldsToTxt(const Domain &D, const std::string& fileName);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
 void loadSeed(Domain *D,int iteration);
-
+void periodicParticles(Domain &D,int iteration);
 #endif   //MESH_H

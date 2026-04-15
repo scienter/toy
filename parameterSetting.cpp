@@ -77,6 +77,10 @@ void parameterSetting(Domain *D,const char *input)
    //Save paratmeter setting
    if(FindParameters("Save",1,"total_length",input,str)) D->Lz=atof(str);
    else  { printf("In [Save], total_length=? [m].\n");  fail=true;  }
+   if(FindParameters("Save",1,"save_step",input,str))  D->saveStep=atoi(str);
+   else  { printf("In [Save], save_step=?\n"); fail=true;   }
+   if(FindParameters("Save",1,"save_start",input,str)) D->saveStart=atoi(str);
+   else  { printf("In [Save], save_start=?\n"); fail=true;   }
 
    //Domain parameter setting
    if(FindParameters("Domain",1,"minX",input,str)) D->minX=atof(str)*1e-6;

@@ -1,8 +1,8 @@
 EXEC = show
 CC = /opt/ompi/5.0.6/bin/mpicxx
-OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveFile.o twiss.o loadSeed.o
+OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveFile.o twiss.o loadSeed.o rearrangeParticles.o
 
-##selfseed.o clean.o aveParticleHDF.o saveFieldHDF.o earrangeParticles.o fieldShareZ.o loadSeed.o twiss.o wakeField.o chicane.o saveFile.o restoreDumpHDF.o
+##selfseed.o clean.o aveParticleHDF.o saveFieldHDF.o ieldShareZ.o loadSeed.o twiss.o wakeField.o chicane.o saveFile.o restoreDumpHDF.o
 
 INCL = constants.h mesh.h particle.h
 
@@ -18,8 +18,12 @@ OPT = -O3 -march=native -mtune=native
 VEC_FLAGS = -ffast-math \
             -fassociative-math \
             -fno-signed-zeros \
-            -fno-trapping-math
+            -fno-trapping-math \
+				-ffp-contract=fast \
+            -funroll-loops
 
+# Link-time Optimization (LTO) - 전체 프로그램 최적화에 큰 도움
+LTO = -flto=auto -fno-fat-lto-objects
 
 
 #-------- for beam server ----------# 

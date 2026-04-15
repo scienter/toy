@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 
    while(iteration<D.maxStep) 
    {
-      if(iteration%20==0) {
+      if(iteration%D.saveStep==0 && iteration>=D.saveStart) {
          for (size_t s=0; s<D.loadList.size(); ++s) {
             std::string fileName = "Field" + std::to_string(iteration);
             saveFieldsToTxt(D, fileName);
@@ -110,11 +110,15 @@ int main(int argc, char *argv[])
          drift_theta_gamma(D,iteration);
          std::cout << "iteration=" << iteration
                    << ", driftON"
+                   << ", K0=" << D.K0
                    << std::endl;
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
+     
+      periodicParticles(D,iteration);
 
-      if(iteration%1==0) {
+
+      if(iteration%10==0) {
          if(myrank==0) 
             printf("iteration=%d, z=%g, K0=%g\n",iteration,iteration*D.dz,D.K0);
       }

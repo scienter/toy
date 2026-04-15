@@ -19,6 +19,9 @@ std::vector<std::vector<double>> doubleMemoryFlat(int size1, int size2);
 
 void boundary(Domain *D)
 {
+   int nx=D->nx, ny=D->ny;
+   double dx=D->dx, dy=D->dy, dz=D->dz;
+   double ks=D->ks;
 
    int myrank=0, nTasks=1;
    //MPI_Status status;
@@ -54,6 +57,40 @@ void boundary(Domain *D)
         }
       }
 
+   }
+
+   // PML condition
+   D->ABCsigX.resize(D->nx,0.0);
+   D->ABCsigY.resize(D->ny,0.0);
+   D->ABCsX.resize(D->nx);
+   D->ABCsY.resize(D->ny);
+   D->ABCalpha.resize(D->nx);
+   D->ABCalphaP.resize(D->nx);
+   D->ABCbeta.resize(D->ny);
+   D->ABCbetaP.resize(D->ny);
+   int Lx=D->abcN;
+   int Ly=D->abcN;
+   double sig0=D->abcSig;
+
+   for(int i=0; i<Lx; ++i)
+      D->ABCsigX[i]=sig0 * (Lx-i) * (Lx-i) / (1.0*Lx*Lx);
+   for(int i=nx-Lx; i<nx; ++i)
+      D->ABCsigX[i]=sig0*(i-nx+Lx)*(i-nx+Lx)/(1.0*Lx*Lx);
+   for(int j=0; j<Ly; ++j)
+      D->ABCsigY[j]=sig0*(Ly-j)*(Ly-j)/(1.0*Ly*Ly);
+   for(int j=ny-Ly; j<ny; ++j)
+      D->ABCsigY[j]=sig0*(j-ny+Ly)*(j-ny+Ly)/(1.0*Ly*Ly);
+   for(int i=0; i<nx; ++i)
+      D->ABCsX[i]=1.0 + I*D->ABCsigX[i];
+   for(int j=0; j<ny; ++j)
+      D->ABCsY[j]=1.0 + I*D->ABCsigY[j];
+   for(int i=1; i<nx-1; ++i) {
+      D->ABCalpha[i]  = -I*dz/(2.0*ks*dx*dx*D->ABCsX[i]*(D->ABCsX[i]+D->ABCsX[i-1]));
+      D->ABCalphaP[i] = -I*dz/(2.0*ks*dx*dx*D->ABCsX[i]*(D->ABCsX[i]+D->ABCsX[i+1]));
+   }
+   for(int j=1; j<ny-1; ++j) {
+      D->ABCbeta[j]   = -I*dz/(2.0*ks*dy*dy*D->ABCsY[j]*(D->ABCsY[j]+D->ABCsY[j-1]));
+      D->ABCbetaP[j]  = -I*dz/(2.0*ks*dy*dy*D->ABCsY[j]*(D->ABCsY[j]+D->ABCsY[j+1]));
    }
 
    // Bessel Table

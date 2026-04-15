@@ -5,7 +5,6 @@
 #include <gsl/gsl_sf_bessel.h>
 #include <mpi.h>
 
-//void solveField1D(Domain *D,int sliceI,int iteration);
 void solve_Sc_1D(Domain &D,int iteration);
 void solve_Field_U_1D(Domain &D,int iteration);
 void solve_Field_U_3D(Domain &D,
@@ -13,36 +12,6 @@ void solve_Field_U_3D(Domain &D,
                       std::vector<std::vector<cplx>>& Sc,
                       int iteration);
 void solve_Sc_3D(Domain &D,int iteration);
-//void MPI_Transfer1F_Z(double complex ***f1,int harmony,int N,int fromI,int toI);
-//void MPI_Transfer1F_Zplus(double complex ***f1,int harmony,int N,int fromI,int toI);
-
-/*
-void shiftField(Domain D,int iteration)
-{
-   int h,numHarmony,i,j,startI,endI,N;
-
-   N=D.nx*D.ny;
-   numHarmony=D.numHarmony;
-   startI=1;  endI=D.subSliceN+1;
-
-   int myrank, nTasks;
-   MPI_Status status;
-   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-
-   for(h=0; h<numHarmony; h++)  
-      for(i=endI; i>=startI; i--) 
-         for(j=0; j<N; j++) {
-            D.Ux[h][i][j]=D.Ux[h][i-1][j];
-            D.Uy[h][i][j]=D.Uy[h][i-1][j];
-         }
-		   
-   MPI_Barrier(MPI_COMM_WORLD);
-   MPI_Transfer1F_Zplus(D.Ux,D.numHarmony,N,endI,startI);
-   MPI_Transfer1F_Zplus(D.Uy,D.numHarmony,N,endI,startI);
-}
-*/
-
 std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, int size);
 
 
@@ -100,40 +69,11 @@ void solve_Field_U_3D(Domain &D,
    double dz=D.dz;
    double ks=D.ks;
    double  currentFlag=D.currentFlag ? 1.0 : 0.0;
-   int Lx=D.abcN; 
-   int Ly=D.abcN;
-   double sig0=D.abcSig;
 
-   std::vector<cplx> CCx(nx), DDx(nx), ddx(nx);
-   std::vector<cplx> CCy(ny), DDy(ny), ddy(ny);
-   std::vector<cplx> Uc(N);
+   std::vector<cplx> CCx(nx,{0.0,0.0}), DDx(nx,{0.0,0.0}), ddx(nx,{0.0,0.0});
+   std::vector<cplx> CCy(ny,{0.0,0.0}), DDy(ny,{0.0,0.0}), ddy(ny,{0.0,0.0});
+   std::vector<cplx> Uc(N,{0.0,0.0});
 
-   std::vector<double> sigX(nx, 0.0);
-   std::vector<double> sigY(ny, 0.0);
-   std::vector<cplx>   sX(nx), sY(ny);
-   std::vector<cplx>   alpha(nx), alphaP(nx);
-   std::vector<cplx>   beta(ny), betaP(ny);
-
-   for(int i=0; i<Lx; ++i) 
-      sigX[i]=sig0 * (Lx-i) * (Lx-i) / (1.0*Lx*Lx);
-   for(int i=nx-Lx; i<nx; ++i)
-      sigX[i]=sig0*(i-nx+Lx)*(i-nx+Lx)/(1.0*Lx*Lx);
-   for(int j=0; j<Ly; ++j) 
-      sigY[j]=sig0*(Ly-j)*(Ly-j)/(1.0*Ly*Ly);
-   for(int j=ny-Ly; j<ny; ++j) 
-      sigY[j]=sig0*(j-ny+Ly)*(j-ny+Ly)/(1.0*Ly*Ly);
-   for(int i=0; i<nx; ++i) 
-      sX[i]=1.0 + I*sigX[i];
-   for(int j=0; j<ny; ++j) 
-      sY[j]=1.0 + I*sigY[j];
-   for(int i=1; i<nx-1; ++i) {
-      alpha[i]  = -I*dz/(2.0*ks*dx*dx*sX[i]*(sX[i]+sX[i-1]));
-      alphaP[i] = -I*dz/(2.0*ks*dx*dx*sX[i]*(sX[i]+sX[i+1]));
-   }
-   for(int j=1; j<ny-1; ++j) {
-      beta[j]   = -I*dz/(2.0*ks*dy*dy*sY[j]*(sY[j]+sY[j-1]));
-      betaP[j]  = -I*dz/(2.0*ks*dy*dy*sY[j]*(sY[j]+sY[j+1]));
-   }
 
    //------------ Field Update ADI -----------------
    for(int h=0; h<numHarmony; ++h)  
@@ -156,22 +96,23 @@ void solve_Field_U_3D(Domain &D,
          for(int j=1; j<ny-1; ++j) {
             // cal. dd
             for(int i=1; i<nx-1; ++i) {
-               ddx[i] = - betaP[j] * Un[h][sliceI*N + (j+1)*nx + i]
-                        + (H + betaP[j] + beta[j]) * Un[h][sliceI*N + j*nx + i]
-                        - beta[j] * Un[h][sliceI*N + (j-1)*nx + i]
-                        + Sc[h][sliceI*N + j*nx + i] * currentFlag;
+               size_t idx = sliceI*N + j*nx + i;
+               ddx[i] = - D.ABCbetaP[j] * Un[h][idx + nx]
+                        + (H + D.ABCbetaP[j] + D.ABCbeta[j]) * Un[h][idx]
+                        - D.ABCbeta[j] * Un[h][idx - nx]
+                        + Sc[h][idx] * currentFlag;
             }
             
             // cal. CC, DD
-            CCx[1] = (H-alphaP[1]-alpha[1]) / alphaP[1];
-            DDx[1] = ddx[1] / alphaP[1];
+            CCx[1] = (H-D.ABCalphaP[1]-D.ABCalpha[1]) / D.ABCalphaP[1];
+            DDx[1] = ddx[1] / D.ABCalphaP[1];
             for(int i=2; i<nx-2; ++i) {
-               CCx[i] = (H-alphaP[i]-alpha[i]) / alphaP[i]
-                       - alpha[i] / (alphaP[i]*CCx[i-1]);
-               DDx[i] = ddx[i] / alphaP[i]
-                       - alpha[i] * DDx[i-1] / (alphaP[i]*CCx[i-1]);
+               CCx[i] = (H-D.ABCalphaP[i]-D.ABCalpha[i]) / D.ABCalphaP[i]
+                       - D.ABCalpha[i] / (D.ABCalphaP[i]*CCx[i-1]);
+               DDx[i] = ddx[i] / D.ABCalphaP[i]
+                       - D.ABCalpha[i] * DDx[i-1] / (D.ABCalphaP[i]*CCx[i-1]);
 	         }
-            CCx[nx-2] = H-alphaP[nx-2]-alpha[nx-2] - 1.0/CCx[nx-3];
+            CCx[nx-2] = H-D.ABCalphaP[nx-2]-D.ABCalpha[nx-2] - 1.0/CCx[nx-3];
             DDx[nx-2] = ddx[nx-2] - DDx[nx-3]/CCx[nx-3];
 
             // cal. Uc
@@ -184,21 +125,22 @@ void solve_Field_U_3D(Domain &D,
          for(int i=1; i<nx-1; ++i) {
             // cal. dd
             for(int j=1; j<ny-1; ++j) {
-               ddy[j] = - alphaP[i] * Uc[j*nx + (i+1)]
-                        + (H + alphaP[i] + alpha[i]) * Uc[j*nx + i]
-                        - alpha[i] * Uc[j*nx + (i-1)]
+               size_t idx = j*nx + i;
+               ddy[j] = - D.ABCalphaP[i] * Uc[idx + 1]
+                        + (H + D.ABCalphaP[i] + D.ABCalpha[i]) * Uc[idx]
+                        - D.ABCalpha[i] * Uc[idx -1]
                         + Sc[h][sliceI*N + j*nx + i] * currentFlag;
             }
             // cal. CC, DD
-            CCy[1] = (H - betaP[1] - beta[1]) / betaP[1];
-            DDy[1] = ddy[1] / betaP[1];
+            CCy[1] = (H - D.ABCbetaP[1] - D.ABCbeta[1]) / D.ABCbetaP[1];
+            DDy[1] = ddy[1] / D.ABCbetaP[1];
             for(int j=2; j<ny-1; ++j) {
-               CCy[j] = (H - betaP[j] - beta[j]) / betaP[j]
-                       - beta[j] / (betaP[j]*CCy[j-1]);
-               DDy[j] = ddy[j] / betaP[j]
-                       - beta[j] * DDy[j-1] / (betaP[j]*CCy[j-1]);
+               CCy[j] = (H - D.ABCbetaP[j] - D.ABCbeta[j]) / D.ABCbetaP[j]
+                       - D.ABCbeta[j] / (D.ABCbetaP[j]*CCy[j-1]);
+               DDy[j] = ddy[j] / D.ABCbetaP[j]
+                       - D.ABCbeta[j] * DDy[j-1] / (D.ABCbetaP[j]*CCy[j-1]);
 	         }
-            CCy[ny-2] = H-betaP[ny-2]-beta[ny-2] - 1.0/CCy[ny-3];
+            CCy[ny-2] = H-D.ABCbetaP[ny-2]-D.ABCbeta[ny-2] - 1.0/CCy[ny-3];
             DDy[ny-2] = ddy[ny-2] - DDy[ny-3]/CCy[ny-3];
 
             // cal. Un
@@ -294,6 +236,7 @@ void solve_Sc_3D(Domain &D,int iteration)
 
             int idxI=(x-minX)/dx;
             int idxJ=(y-minY)/dy;
+            size_t idx = sliceI*N + idxJ*nx + idxI;
             wx[1]=(x-minX)/dx-idxI;   wx[0]=1.0-wx[1];
             wy[1]=(y-minY)/dy-idxJ;   wy[0]=1.0-wy[1];	  
             if(idxI>=0 && idxI<nx && idxJ>=0 && idxJ<ny)  {
@@ -327,9 +270,9 @@ void solve_Sc_3D(Domain &D,int iteration)
                   cplx macro_expTheta_coef=dbH*macro*coef_U*std::exp(-I*dbH*(theta+Phi*0.5))/gam;
                   for(int ii=0; ii<2; ++ii)
                      for(int jj=0; jj<2; ++jj) { 
-                        D.ScUx[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]
+                        D.ScUx[h][idx + jj*nx + ii]
                             -= etaX * wx[ii] * wy[jj] * fx * macro_expTheta_coef;
-                        D.ScUy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]
+                        D.ScUy[h][idx + jj*nx + ii]
                             -= etaY * wx[ii] * wy[jj] * fy * macro_expTheta_coef;
                      }
                }		//End of harmony
@@ -573,148 +516,3 @@ void solve_Sc_1D(Domain &D,int iteration)
 
 }
 
-/*    Matrix method but it is very slow.
-void solve_Field_U_3D(Domain *D,int iteration)
-{
-   int h,H,numHarmony,i,j,sliceI,startI,endI,ii;  
-   int n,nx,ny;
-   double ks,dx,dy,dz,currentFlag;
-   double complex alpha,beta,invR,diagB,compVal,*rList,**B,*SList;
-   int myrank, nTasks;
-   MPI_Status status;
-
-   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-
-   startI=1;   endI=D->subSliceN+1;
-   numHarmony=D->numHarmony;
-
-   dx=D->dx;  dy=D->dy;  dz=D->dz;
-   ks=D->ks;
-   nx=D->nx;  ny=D->ny;
-	currentFlag=D->currentFlag;
-
-   // first step
-   rList=(double complex *)malloc(nx*sizeof(double complex));
-   SList=(double complex *)malloc(nx*sizeof(double complex));
-   B=(double complex **)malloc(nx*sizeof(double complex *));
-   for(i=0; i<nx; i++)
-      B[i]=(double complex *)malloc(nx*sizeof(double complex));
-
-   for(h=0; h<numHarmony; h++)  {
-      H = D->harmony[h];
-      alpha=-I*dz*0.25/(H*ks)/dx/dx;
-  	   beta=-I*dz*0.25/(H*ks)/dy/dy;
-
-      diagB = (1-2*alpha)/alpha;
-	   rList[0]=1;
-	   rList[1]=-diagB;
-      for(i=2; i<nx; i++)
-	      rList[i] = -1*(diagB*rList[i-1]+rList[i-2]);
-      invR = 1.0/(diagB*rList[nx-1]+rList[nx-2]);
-
-      for(i=0; i<nx; i++)
-         for(j=i; j<nx; j++) {
-	         compVal = rList[i]*rList[nx-1-j];
-            B[i][j] = compVal*invR;
-            B[j][i] = compVal*invR;
-		   }
-	
-      for(sliceI=startI; sliceI<endI; sliceI++) {
-//       memcpy(&(D->tmpU[0]),&(D->U[h][sliceI][0]),nx*ny*sizeof(double complex ));
-         j=0;
-            for(i=0; i<nx; i++)
-               SList[i]=((1+2*beta)*D->U[h][sliceI][j*nx+i]-beta*D->U[h][sliceI][(j+1)*nx+i]+D->ScU[h][sliceI][j*nx+i]*currentFlag)/alpha;
-            for(i=0; i<nx; i++) {
-		         compVal=0+I*0;
-               for(ii=0; ii<nx; ii++) compVal+=B[i][j]*SList[ii];
-               D->Uc[h][sliceI][j*nx+i]=compVal;
-            }
-		 
-         for(j=1; j<ny-1; j++) {
-            for(i=0; i<nx; i++)
-               SList[i]=((1+2*beta)*D->U[h][sliceI][j*nx+i]-beta*(D->U[h][sliceI][(j-1)*nx+i]+D->U[h][sliceI][(j+1)*nx+i])+D->ScU[h][sliceI][j*nx+i]*currentFlag)/alpha;
-            for(i=0; i<nx; i++) {
-  	            compVal=0+I*0;
-               for(ii=0; ii<nx; ii++) compVal+=B[i][j]*SList[ii];
-               D->Uc[h][sliceI][j*nx+i]=compVal;
-		      }
-         }
-
-         j=ny-1;
-            for(i=0; i<nx; i++)
-               SList[i]=((1+2*beta)*D->U[h][sliceI][j*nx+i]-beta*D->U[h][sliceI][(j-1)*nx+i]+D->ScU[h][sliceI][j*nx+i]*currentFlag)/alpha;
-            for(i=0; i<nx; i++) {
-  	            compVal=0+I*0;
-               for(ii=0; ii<nx; ii++) compVal+=B[i][j]*SList[ii];
-               D->Uc[h][sliceI][j*nx+i]=compVal;
-		      }
-	   }
-   }
-   free(rList);
-   free(SList);
-   for(i=0; i<nx; i++) free(B[i]);
-	free(B);
-
-   // second step
-   rList=(double complex *)malloc(ny*sizeof(double complex));
-   SList=(double complex *)malloc(ny*sizeof(double complex));
-   B=(double complex **)malloc(ny*sizeof(double complex *));
-   for(i=0; i<ny; i++)
-      B[i]=(double complex *)malloc(ny*sizeof(double complex));
-
-   for(h=0; h<numHarmony; h++)  {
-	   H = D->harmony[h];
-      alpha=-I*dz*0.25/(H*ks)/dx/dx;
-  	   beta=-I*dz*0.25/(H*ks)/dy/dy;
-
-      diagB = -1*(1+2*beta)/beta;
-	   rList[0]=1;
-	   rList[1]=-diagB;
-      for(i=2; i<ny; i++)
-	      rList[i] = -1*(diagB*rList[i-1]+rList[i-2]);
-      invR = 1.0/(diagB*rList[ny-1]+rList[ny-2]);
-
-      for(i=0; i<ny; i++)
-         for(j=i; j<ny; j++) {
-		      compVal = rList[i]*rList[ny-1-j];
-			   B[i][j] = compVal*invR;
-			   B[j][i] = compVal*invR;
-		   }
-	
-      for(sliceI=startI; sliceI<endI; sliceI++) {
-//       memcpy(&(D->tmpU[0]),&(D->U[h][sliceI][0]),nx*ny*sizeof(double complex ));
-         i=0;
-            for(j=0; j<ny; j++)
-               SList[j]=((1+2*alpha)*D->Uc[h][sliceI][j*nx+i]-alpha*D->Uc[h][sliceI][j*nx+(i+1)]+D->ScU[h][sliceI][j*nx+i]*currentFlag)/beta;
-            for(j=0; j<ny; j++) {
-		         compVal=0+I*0;
-               for(ii=0; ii<ny; ii++) compVal+=B[i][j]*SList[ii];
-               D->U[h][sliceI][j*nx+i]=compVal;
-		      }		 
-         for(i=1; i<nx-1; i++) {
-            for(j=0; j<ny; j++)
-               SList[j]=((1+2*alpha)*D->Uc[h][sliceI][j*nx+i]-alpha*(D->Uc[h][sliceI][j*nx+(i-1)]+D->Uc[h][sliceI][j*nx+(i+1)])+D->ScU[h][sliceI][j*nx+i]*currentFlag)/beta;
-            for(j=0; j<ny; j++) {
-  	            compVal=0+I*0;
-               for(ii=0; ii<ny; ii++) compVal+=B[i][j]*SList[ii];
-               D->U[h][sliceI][j*nx+i]=compVal;
-		      }
-         }
-         i=nx-1;
-            for(j=0; j<ny; j++)
-               SList[j]=((1+2*alpha)*D->Uc[h][sliceI][j*nx+i]-alpha*D->Uc[h][sliceI][j*nx+(i-1)]+D->ScU[h][sliceI][j*nx+i]*currentFlag)/beta;
-            for(j=0; j<ny; j++) {
-  	            compVal=0+I*0;
-					for(ii=0; ii<ny; ii++) compVal+=B[i][j]*SList[ii];
-               D->U[h][sliceI][j*nx+i]=compVal;
-		      }
-	   }
-   }
-
-   free(rList);
-   free(SList);
-   for(i=0; i<ny; i++) free(B[i]);
-	free(B);	
-}
-*/
