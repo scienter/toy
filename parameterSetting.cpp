@@ -32,6 +32,8 @@ double randomV()
 OperationMode whatOperMode(char *str);
 BeamMode whatBeamMode(char *str);
 UndMode whatUndMode(char *str);
+WakeShapeMode whatWakeShape(char *str);
+WakeACDCMode whatACDC(char *str);
 bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input);
 bool findUndulatorLoadParameters(int rank,UndList& UL,Domain *D,const char *input);
 bool whatONOFF(char *str);
@@ -81,6 +83,10 @@ void parameterSetting(Domain *D,const char *input)
    else  { printf("In [Save], save_step=?\n"); fail=true;   }
    if(FindParameters("Save",1,"save_start",input,str)) D->saveStart=atoi(str);
    else  { printf("In [Save], save_start=?\n"); fail=true;   }
+   if(FindParameters("Save",1,"field_save",input,str)) D->fieldSave=whatONOFF(str);
+   else  D->fieldSave=true;
+   if(FindParameters("Save",1,"particle_save",input,str)) D->particleSave=whatONOFF(str);
+   else  D->particleSave=true;
 
    //Domain parameter setting
    if(FindParameters("Domain",1,"minX",input,str)) D->minX=atof(str)*1e-6;
@@ -178,6 +184,7 @@ void parameterSetting(Domain *D,const char *input)
    }
    D->nQuad = rank-1;
 
+
    //space charge
    if(FindParameters("Domain",1,"number_azimuthal_mode",input,str)) D->SCFmode=atoi(str);
    else  D->SCFmode=1;
@@ -215,7 +222,6 @@ void parameterSetting(Domain *D,const char *input)
    else  { printf("In [Seed], laser_alpha=? [1 : X axis, -1 : Y axis].\n");  fail=true;   }
    double area=2.0*M_PI*D->spotSigR*D->spotSigR;
    D->a0=sqrt(D->P0*2.0*Z0/area)*eCharge/(eMass*velocityC*velocityC*D->ks*D->loadH);
-   printf("a0=%g\n",D->a0);
    // I(r) = I0 * exp(-r^2 / (2 * sigR^2) )  ==> P0 = I0 * 2*pi*sigR^2
    // E = sqrt(2*I0 / (c*eps0)) = sqrt(2*I0*Z0)
    D->zR = 2.0 * D->spotSigR * D->spotSigR * D->ks * (1.0*D->loadH);
@@ -225,17 +231,42 @@ void parameterSetting(Domain *D,const char *input)
    // Extra setting
 
    if(D->mode==OperationMode::Static) {
-      D->minZ=-0.5*D->lambda0*D->numSlice;
-      D->maxZ=0.5*D->lambda0*D->numSlice;
+      D->minZ=0.0;
+      D->maxZ=D->lambda0*D->numSlice;
    }
    D->lambdaU=D->undList[0].lambdaU;
    D->dz = D->lambdaU*D->numLambdaU;
    D->maxStep=(int)(D->Lz/D->dz+1);
-
-
-
-
+   D->sliceN = (D->maxZ-D->minZ)/(D->lambda0*D->numSlice);
+   if(D->sliceN>50000 || D->sliceN<-50000) {
+      if(myrank==0) {
+         printf("Too much slices. sliceN=%d.\n",D->sliceN);
+         exit(0);
+      }
+   }
    if (D->mode == OperationMode::Static) D->sliceN=1;
+
+   //wake field
+   if(FindParameters("Wake_field",1,"activate",input,str)) D->wakeONOFF=whatONOFF(str);
+   else  D->wakeONOFF=true;
+   if(FindParameters("Wake_field",1,"update_step",input,str)) D->wakeFieldStep=atoi(str);
+   else  D->wakeFieldStep=D->maxStep;
+   if(FindParameters("Wake_field",1,"shape",input,str)) D->wakeShape=whatWakeShape(str);
+   else  D->wakeShape=WakeShapeMode::Flat;
+   if(FindParameters("Wake_field",1,"ac_dc",input,str)) D->ac_dc=whatACDC(str);
+   else  D->ac_dc=WakeACDCMode::AC;
+   if(FindParameters("Wake_field",1,"radius",input,str)) D->radius=atof(str);
+   else  { printf("In [Wake_field], radius=? [m].\n");  fail=1;   }
+   if(FindParameters("Wake_field",1,"conductivity",input,str)) D->cond=atof(str);
+   else  D->cond=3.03e7;      // Al
+   if(D->ac_dc==WakeACDCMode::AC) {
+      if(FindParameters("Wake_field",1,"ctau",input,str)) D->ctau=atof(str);
+      else  D->ctau=2.4e-6;    // [m] Al
+   } else {
+      D->ctau=0.0;
+   }
+
+
    if (myrank==0) { 
       cout << "lambda0=" << D->lambda0 
            << ", numHarmony=" << D->numHarmony 
@@ -454,20 +485,75 @@ bool findBeamLoadParameters(int rank,LoadList& LL,Domain *D,const char *input)
          if(LL.znodes>0)  {
              LL.zpoint.resize(LL.znodes);
              LL.zn.resize(LL.znodes);
-             for(int i=0; i<LL.znodes; i++)  {
+             for(int i=0; i<LL.znodes; ++i)  {
                 sprintf(name,"z%d",i);
                 if(FindParameters("EBeam",rank,name,input,str)) LL.zpoint[i] = atof(str);
-                else  { printf("z%d should be defined.\n",i);  fail=1; }
+                else  { printf("z%d should be defined.\n",i);  fail=true; }
 
                 sprintf(name,"z_n%d",i);
                 if(FindParameters("EBeam",rank,name,input,str)) LL.zn[i] = atof(str);
-                else { printf("z_n%d should be defined.\n",i);  fail=1; }
+                else { printf("z_n%d should be defined.\n",i);  fail=true; }
              }
-          }
+         }
+         
+         if(FindParameters("EBeam",rank,"energy_nodes",input,str)) LL.Enodes=atoi(str);
+         else  { printf("in [EBeam], energy_nodes=?\n");  fail=true;   }
+         if(LL.Enodes>0)  {
+            LL.Epoint.resize(LL.Enodes);
+            LL.En.resize(LL.Enodes);
+            for(int i=0; i<LL.Enodes; ++i)  {
+               sprintf(name,"energy_z%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.Epoint[i] = atof(str);
+               else  { printf("energy_z%d should be defined.\n",i);  fail=true; }
+
+               sprintf(name,"energy_n%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.En[i] = atof(str);
+               else { printf("energy_n%d should be defined.\n",i);  fail=true; }
+            }
+         }
+         if(FindParameters("EBeam",rank,"energySpread_nodes",input,str)) LL.ESnodes=atoi(str);
+         else  { printf("in [EBeam], energySpread_nodes=?\n");  fail=true;   }
+         if(LL.ESnodes>0)  {
+            LL.ESpoint.resize(LL.ESnodes);
+            LL.ESn.resize(LL.ESnodes);
+            for(int i=0; i<LL.ESnodes; ++i)  {
+               sprintf(name,"energySpread_z%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.ESpoint[i] = atof(str);
+               else  { printf("energySpread_z%d should be defined.\n",i);  fail=true; }
+
+               sprintf(name,"energySpread_n%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.ESn[i] = atof(str);
+               else { printf("energySpread_n%d should be defined.\n",i);  fail=true; }
+            }
+         }
+
+         if(FindParameters("EBeam",rank,"emit_nodes",input,str)) LL.EmitNodes=atoi(str);
+         else  { printf("in [EBeam], emit_nodes=?\n");  fail=true;   }
+         if(LL.EmitNodes>0)  {
+            LL.EmitPoint.resize(LL.EmitNodes);
+            LL.EmitN.resize(LL.EmitNodes);
+            for(int i=0; i<LL.EmitNodes; ++i)  {
+               sprintf(name,"emit_z%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.EmitPoint[i] = atof(str);
+               else  { printf("emit_z%d should be defined.\n",i);  fail=true; }
+
+               sprintf(name,"emit_n%d",i);
+               if(FindParameters("EBeam",rank,name,input,str)) LL.EmitN[i] = atof(str);
+               else { printf("emit_n%d should be defined.\n",i);  fail=true; }
+            }
+         }
+         
          break;
       case BeamMode::Gaussian:
-        // Gaussian 모드 처리 코드를 여기에 작성하세요
-        // 예: LL.sigma = ... 등
+         if(FindParameters("EBeam",rank,"sigma_z",input,str)) LL.sigZ=atof(str);
+         else  { printf("in [EBeam], sigma_z=?\n");  fail=true;   }
+         if(FindParameters("EBeam",rank,"gaussian_power",input,str)) LL.gaussPower=atof(str);
+         else  LL.gaussPower=2;
+         if(FindParameters("EBeam",rank,"position_z",input,str)) LL.posZ=atof(str);
+         else  { printf("in [EBeam], position_z=?\n");  fail=true;   }
+         if(FindParameters("EBeam",rank,"energy_chirp",input,str)) LL.Echirp=atof(str);
+         else  { printf("in [EBeam], energy_chirp=?  [MeV/m]\n");  fail=true;   }
+
          break;
       }
       LL.gamma0 = LL.energy/mc2 + 1.0;
@@ -516,6 +602,27 @@ OperationMode whatOperMode(char *str)
    else 
       return OperationMode::Unknown;
 }
+
+WakeShapeMode whatWakeShape(char *str)
+{
+   if (strstr(str,"Flat") != nullptr)
+      return WakeShapeMode::Flat;
+   else if (strstr(str,"Circular") != nullptr)
+      return WakeShapeMode::Circular;
+   else
+      return WakeShapeMode::Unknown;
+}
+
+WakeACDCMode whatACDC(char *str)
+{
+   if (strstr(str,"AC") != nullptr)
+      return WakeACDCMode::AC;
+   else if (strstr(str,"DC") != nullptr)
+      return WakeACDCMode::DC;
+   else
+      return WakeACDCMode::Unknown;
+}
+
 
 bool whatONOFF(char *str)
 {

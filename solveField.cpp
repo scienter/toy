@@ -12,7 +12,7 @@ void solve_Field_U_3D(Domain &D,
                       std::vector<std::vector<cplx>>& Sc,
                       int iteration);
 void solve_Sc_3D(Domain &D,int iteration);
-std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, int size);
+std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, size_t size);
 
 
 void solveField(Domain *D,int iteration)
@@ -282,7 +282,8 @@ void solve_Sc_3D(Domain &D,int iteration)
 
       
       //Calculate Ez space charge
-      std::vector<std::vector<cplx>> Sc=complexMemoryFlat(L,F*nr);
+      size_t fieldSize = static_cast<size_t>(F*nr);
+      std::vector<std::vector<cplx>> Sc=complexMemoryFlat(L,fieldSize);
       std::vector<double> a(nr),b(nr),c(nr);
       std::vector<cplx> d(nr);
       double A = ks*ks*(1.0+0.5*(1.0+ue*ue)*K0*K0)/(gamR*gamR)*dr*dr;

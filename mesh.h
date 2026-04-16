@@ -27,6 +27,20 @@ enum class UndMode {
     // 필요하면 다른 모드 추가
 };
 
+enum class WakeShapeMode {
+    Unknown    = 0,
+    Flat       = 1,
+    Circular   = 2
+    // 필요하면 다른 모드 추가
+};
+
+enum class WakeACDCMode {
+    Unknown    = 0,
+    AC       = 1,
+    DC   = 2
+    // 필요하면 다른 모드 추가
+};
+
 struct UndList  {
    UndMode type = UndMode::Unknown;
 
@@ -63,6 +77,7 @@ typedef struct _Domain
 
    //Save option
    int maxStep,saveStep,saveStart;
+   bool fieldSave,particleSave;
 
    //Domain box
    int sliceN,subSliceN,nx,ny,minI,maxI;
@@ -70,6 +85,8 @@ typedef struct _Domain
    double Lz,dz;   
    double dx,dy;
    double gamR;
+   std::vector<int> minmax;
+
 
    // ABC condition
    int abcN;
@@ -86,6 +103,7 @@ typedef struct _Domain
    double gamma0=1.0;
    std::vector<LoadList> loadList;
    std::vector<Particle> particle;
+   double totalCnt;
 
    //Undulator
    UndMode undType;
@@ -114,6 +132,15 @@ typedef struct _Domain
    double laserAlpha;
    double P0,duration,spotSigR,a0,zR,focus,polarity,laserPsi;
 
+   //Wake
+   WakeShapeMode wakeShape;
+   WakeACDCMode ac_dc;
+   bool wakeONOFF;
+   int wakeFieldStep;
+   std::vector<double> den,wakeF,wakeE;
+   double radius,cond,ctau;
+
+
 }  Domain; 
 
 
@@ -131,7 +158,11 @@ void updateTotalEnergy(Domain *D,int iteration);
 void updatebFactor(const Domain &D, int iteration);
 void transversePush(Domain *D,int iteration);
 void calculate_twiss(Domain &D,int iteration);
+void wakeFunction(Domain *D,int iteration);
+void updateWakeField(Domain *D,int iteration);
 
+void saveParticleHDF(Domain *D,int iteration);
+void saveFieldHDF(Domain *D,int iteration);
 void saveFieldsToTxt(const Domain &D, const std::string& fileName);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
 void loadSeed(Domain *D,int iteration);

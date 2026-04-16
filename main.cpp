@@ -3,6 +3,7 @@
 #include <mpi.h>
 #include <cmath>         // 수학 함수
 #include <ctime>         // time
+#include <chrono>
 #include <complex>       // std::complex
 #include <string>
 #include <iostream>
@@ -23,6 +24,10 @@ int main(int argc, char *argv[])
    //MPI_Status status; 
    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   // time start
+   auto start = std::chrono::high_resolution_clock::now();
+
 
    Domain D{};     // zero-initialization
    LoadList LL{};
@@ -45,24 +50,27 @@ int main(int argc, char *argv[])
 
 
    } else {
-      //Create "totalEnergy", "twissFile", "bFactor" file
-      FILE *out1 = fopen("totalEnergy", "w");      
-      fclose(out1);
-      FILE *out2 = fopen("twissFile", "w");      
-      fprintf(out2,"#%12s %12s %12s %12s %12s %12s %12s\n",
+      if(myrank==0) {
+         //Create "totalEnergy", "twissFile", "bFactor" file
+         FILE *out1 = fopen("totalEnergy", "w");      
+         fclose(out1);
+         FILE *out2 = fopen("twissFile", "w");      
+         fprintf(out2,"#%12s %12s %12s %12s %12s %12s %12s\n",
                   "z","emitX","betaX","alphaX","emitY","betaY","alphaY");
-      fclose(out2);
-      std::string fileName3 = "bFactor";
-      std::ofstream out3(fileName3);     
-      out3 << "#z        " ;
-      for(int h=0; h<D.numHarmony; ++h) {
-         out3 << std::setw(10) << "harmony:" << D.harmony[h];
+         fclose(out2);
+         std::string fileName3 = "bFactor";
+         std::ofstream out3(fileName3);     
+         out3 << "#z        " ;
+         for(int h=0; h<D.numHarmony; ++h)
+            out3 << std::setw(10) << "harmony:" << D.harmony[h];
+         out3 << "\n";
+         out3.close();
       }
-      out3 << "\n";
-      out3.close();
-
       //loading Seed pulse
       loadSeed(&D,iteration);
+
+      // Wake function 
+      wakeFunction(&D,iteration);
 
       //loading  beam
       iteration=0;
@@ -76,15 +84,36 @@ int main(int argc, char *argv[])
 
    while(iteration<D.maxStep) 
    {
-      if(iteration%D.saveStep==0 && iteration>=D.saveStart) {
-         for (size_t s=0; s<D.loadList.size(); ++s) {
-            std::string fileName = "Field" + std::to_string(iteration);
-            saveFieldsToTxt(D, fileName);
-            fileName = std::to_string(s) + "Particle" + std::to_string(iteration);
-            saveParticlesToTxt(D, s, fileName);
-         }
+      // Updating wake_field
+      if(iteration%D.wakeFieldStep==0) {
+         updateWakeField(&D,iteration);
       }
 
+      if(iteration%D.saveStep==0 && iteration>=D.saveStart) {
+         // current time
+         auto now = std::chrono::system_clock::now();
+         std::time_t current_time = std::chrono::system_clock::to_time_t(now);
+         if(myrank==0) {
+            std::cout << std::put_time(std::localtime(&current_time), "%Y-%m-%d %H:%M:%S")                      << std::endl;
+         }
+
+         if(D.mode == OperationMode::Static) {
+            std::string fileName = "Power" + std::to_string(iteration);
+            saveFieldsToTxt(D, fileName);
+            for (size_t s=0; s<D.loadList.size(); ++s) {
+               fileName = std::to_string(s) + "Particle" + std::to_string(iteration);
+               saveParticlesToTxt(D, s, fileName);
+            }
+         } else {
+            if(D.particleSave==true)  
+               saveParticleHDF(&D,iteration);
+            if(D.fieldSave==true)     
+               saveFieldHDF(&D,iteration);
+         }
+      
+      }
+ 
+      
       // Update Files
       updateTotalEnergy(&D,iteration);
       calculate_twiss(D,iteration);
@@ -115,8 +144,7 @@ int main(int argc, char *argv[])
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
      
-      periodicParticles(D,iteration);
-
+      periodicParticles(D,iteration);     
 
       if(iteration%10==0) {
          if(myrank==0) 
@@ -125,7 +153,12 @@ int main(int argc, char *argv[])
       iteration++;
    }
 
-
+   // End time
+   auto end = std::chrono::high_resolution_clock::now();
+   std::chrono::duration<double> elapsed = end - start;
+   double minutes = elapsed.count() / 60.0;
+   if(myrank==0) 
+      std::cout << "running time =" << minutes << " m" << std::endl;
 
    MPI_Finalize();
 

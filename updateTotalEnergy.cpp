@@ -33,8 +33,6 @@ void updateTotalEnergy(Domain *D,int iteration)
       }
       D->totalEnergyX[iteration][h]=totalX;
       D->totalEnergyY[iteration][h]=totalY;
-      //printf("totalX[%d][%d]=%g\n",iteration,h,totalX);
-      //printf("totalY[%d][%d]=%g\n",iteration,h,totalY);
    }
 
    double area=2.0*M_PI*D->spotSigR*D->spotSigR;
@@ -42,17 +40,39 @@ void updateTotalEnergy(Domain *D,int iteration)
    double coef2=coef*coef/(2.0*Z0)*area;
    if(D->dimension==3)
       coef2=coef*coef/(2.0*Z0)*D->dx*D->dy;
-   //if(D->mode==Time_Dependent) coef2*=dt; else ;
+   if(D->mode==OperationMode::Time_Dependent) 
+      coef2*=dt; 
 
-   
-   if (myrank == 0) {
+   std::vector<double> sendDataX(numHarmony);
+   std::vector<double> sendDataY(numHarmony);
+   std::vector<double> recvDataX(numHarmony);
+   std::vector<double> recvDataY(numHarmony);
+   for(int h = 0; h < numHarmony; ++h) {
+      sendDataX[h] = D->totalEnergyX[iteration][h];
+      sendDataY[h] = D->totalEnergyY[iteration][h];
+   }
+
+   if (myrank != 0) {
+      MPI_Send(sendDataX.data(),numHarmony,MPI_DOUBLE,0,myrank,MPI_COMM_WORLD);
+      MPI_Send(sendDataY.data(),numHarmony,MPI_DOUBLE,0,myrank,MPI_COMM_WORLD);
+   } else {
+      // Rank 0: receiving data from other ranks and summing up.
+      for(int i = 1; i < nTasks; ++i) {
+         MPI_Recv(recvDataX.data(),numHarmony,MPI_DOUBLE,i,i,MPI_COMM_WORLD, &status);
+         MPI_Recv(recvDataY.data(),numHarmony,MPI_DOUBLE,i,i,MPI_COMM_WORLD, &status);
+         for(int h = 0; h < numHarmony; ++h) {
+            D->totalEnergyX[iteration][h] += recvDataX[h];
+            D->totalEnergyY[iteration][h] += recvDataY[h];
+         }
+      }
+      
       FILE *out = fopen("totalEnergy", "a+");
       if (out == nullptr) {
          std::cerr << "Error: cannot open totalEnergy file" << std::endl;
          return;
       }
 
-      double z = iteration * D->dz + D->minZ;
+      double z = iteration * D->dz + (D->minZ+D->maxZ)*0.5;
       fprintf(out, "%.15g", z);
 
       for (int h = 0; h < numHarmony; ++h) {
@@ -63,52 +83,6 @@ void updateTotalEnergy(Domain *D,int iteration)
       fclose(out);
    }
 
-   /*
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   sendDataX=(double *)malloc(numHarmony*sizeof(double ));
-   recvDataX=(double *)malloc(numHarmony*sizeof(double ));
-   sendDataY=(double *)malloc(numHarmony*sizeof(double ));
-   recvDataY=(double *)malloc(numHarmony*sizeof(double ));
-   for(h=0; h<numHarmony; h++) {
-      sendDataX[h] = D->totalEnergyX[iteration][h];
-      sendDataY[h] = D->totalEnergyY[iteration][h];
-   }
-
-   for(i=1; i<nTasks; i++) {
-      if(myrank==i)  {
-         MPI_Send(sendDataX,numHarmony,MPI_DOUBLE,0,myrank,MPI_COMM_WORLD);
-         MPI_Send(sendDataY,numHarmony,MPI_DOUBLE,0,myrank,MPI_COMM_WORLD);
-      }  else ;
-   }
-
-   if(myrank==0) {
-      for(i=1; i<nTasks; i++) {
-         MPI_Recv(recvDataX,numHarmony,MPI_DOUBLE,i,i,MPI_COMM_WORLD,&status);
-         MPI_Recv(recvDataY,numHarmony,MPI_DOUBLE,i,i,MPI_COMM_WORLD,&status);
-         for(h=0; h<numHarmony; h++) {
-	    D->totalEnergyX[iteration][h] += recvDataX[h];
-	    D->totalEnergyY[iteration][h] += recvDataY[h];
-         }
-      }
-
-      out=fopen("totalEnergy","a+");
-      z=iteration*dz+minZ;
-      fprintf(out,"%.15g",z);
-      for(h=0; h<numHarmony; h++) {
-         H=D->harmony[h];
-         fprintf(out," %g",D->totalEnergyX[iteration][h]*coef2);
-         fprintf(out," %g",D->totalEnergyY[iteration][h]*coef2);
-      }
-      fprintf(out,"\n");
-      fclose(out);
-   } else ;
-
-   free(sendDataX);
-   free(sendDataY);
-   free(recvDataX);
-   free(recvDataY);
-	*/
 }
 
 /*

@@ -98,23 +98,4 @@ void calculate_twiss(Domain &D,int iteration)
    }
 }
 
-/*
-void save_twiss(Domain *D)
-{
-   int i;
-   double dz;
-   char name[100];
-   FILE *out;
 
-   dz=D->dz;
-   sprintf(name,"twiss");       
-   out = fopen(name,"w");  
-   for(i=0; i<D->maxStep; i++)  { 
-     fprintf(out,"%g %.10g %g %.10g %g ",i*dz,D->twsEmitX[i],D->twsBX[i],D->twsGX[i],D->twsAX[i]);
-     fprintf(out,"%.10g %g %.10g %g %g\n",D->twsEmitY[i],D->twsBY[i],D->twsGY[i],D->twsAY[i],D->twsG[i]);
-   }
-   fclose(out);
-   printf("%s is made.\n",name);                                                                                
-  
-}
-*/

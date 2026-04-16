@@ -34,14 +34,14 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
 
    int startI=1;       
    int endI=1+D.subSliceN;
+   int minI=D.minI;
   
    int maxH=D.harmony[D.numHarmony-1]; 
    int numInBeamlet=LL.numInBeamlet;
    double gamma0=LL.energy/mc2+1;
-   double dGam=LL.spread*gamma0;
    double current=LL.peakCurrent;		// peak current in a cell
    double bucketZ=D.lambda0*D.numSlice;	// size of a big slice
-   double ptclCnt=numInBeamlet*LL.numBeamlet;	
+   int ptclCnt=numInBeamlet*LL.numBeamlet;	
    double noiseONOFF=LL.noiseONOFF ? 1.0 : 0.0;
 
    // Calculation recommanding quad g*l, beta_min, beta_max
@@ -60,10 +60,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
 
    double dPhi=2.0*M_PI*D.numSlice;
    double div=2.0*M_PI/(1.0*numInBeamlet);
-   double macro=current/eCharge/velocityC*bucketZ/ptclCnt;
+   double macro=current/eCharge/velocityC*bucketZ/static_cast<double>(ptclCnt);
 
-   size_t totalParticles=LL.numBeamlet*LL.numInBeamlet;
-   
    // gsl random generator
    gsl_rng_env_setup();
 
@@ -91,18 +89,42 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       gsl_qrng_get(q1, v1);
       gsl_qrng_get(q2, v2);
    }
-   
+  
+   double cnt=0.0; 
    for(int sliceI=startI; sliceI<endI; ++sliceI) {
       //position define     
-      double posZ=(sliceI-startI+D.minI)*bucketZ+D.minZ;
       double n0=0.0;
+      double En0=0.0;
+      double ESn0=0.0;
+      double EmitN0=0.0;
+      double posZ=(sliceI-startI+minI)*bucketZ+D.minZ;
       if(LL.type==BeamMode::Polygon) {
          for(int l=0; l<LL.znodes-1; ++l) {
             if(posZ>=LL.zpoint[l] && posZ<LL.zpoint[l+1])
                n0=(LL.zn[l+1]-LL.zn[l])/(LL.zpoint[l+1]-LL.zpoint[l])*(posZ-LL.zpoint[l])+LL.zn[l];
          }
+         for(int l=0; l<LL.Enodes-1; ++l) {
+            if(posZ>=LL.Epoint[l] && posZ<LL.Epoint[l+1])
+               En0=(LL.En[l+1]-LL.En[l])/(LL.Epoint[l+1]-LL.Epoint[l])*(posZ-LL.Epoint[l])+LL.En[l];
+         }
+         gamma0=LL.energy*En0/mc2+1.0;
+         for(int l=0; l<LL.ESnodes-1; ++l) {
+            if(posZ>=LL.ESpoint[l] && posZ<LL.ESpoint[l+1])
+               ESn0=(LL.ESn[l+1]-LL.ESn[l])/(LL.ESpoint[l+1]-LL.ESpoint[l])*(posZ-LL.ESpoint[l])+LL.ESn[l];
+         }
+         for(int l=0; l<LL.EmitNodes-1; ++l) {
+            if(posZ>=LL.EmitPoint[l] && posZ<LL.EmitPoint[l+1])
+               EmitN0=(LL.EmitN[l+1]-LL.EmitN[l])/(LL.EmitPoint[l+1]-LL.EmitPoint[l])*(posZ-LL.EmitPoint[l])+LL.EmitN[l];
+         }
+
+      } else if(LL.type==BeamMode::Gaussian) {
+         double phase=std::pow((posZ-LL.posZ)/LL.sigZ,LL.gaussPower);
+         n0=std::exp(-phase);
+         gamma0=(LL.energy+LL.Echirp*(posZ-LL.posZ))/mc2+1.0;
       }
-      
+
+      double dGam=LL.spread*gamma0*ESn0;
+    
       double emitX=LL.emitX/gamma0;
       double emitY=LL.emitY/gamma0;
       double gammaX=(1+LL.alphaX*LL.alphaX)/LL.betaX;
@@ -119,13 +141,17 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       double delTY=distanceY/vz;	//normalized
       if(vz==0.0) { delTX=delTY=0.0; }
 
-      unsigned int beamlets=LL.numBeamlet*n0;
+      int beamlets=LL.numBeamlet*n0;
       double remacro = (beamlets >0)
                      ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
       double eNumbers=remacro*numInBeamlet*beamlets;
       if(eNumbers<10) eNumbers=10;  
 
+      cnt += remacro*numInBeamlet*beamlets;
+//if(myrank==0) printf("cnt=%g,remacro=%g, numInBeamlet=%d, beamlets=%d\n",cnt,remacro,numInBeamlet,beamlets);
+   
+      size_t totalParticles=LL.numBeamlet*LL.numInBeamlet;
       auto New = std::make_unique<ptclList>();
 
       // head[s] is nullptr, the generate new.
@@ -144,8 +170,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       New->py.resize(totalParticles);
       New->theta.resize(totalParticles);
       New->gamma.resize(totalParticles);
-      New->index.resize(totalParticles);
-      New->core.resize(totalParticles);
+      //New->index.resize(totalParticles);
+      //New->core.resize(totalParticles);
       
       unsigned long ptclIdx=0;
       double x,y,xPrime,yPrime;
@@ -223,44 +249,33 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_qrng_free(q2);
    gsl_rng_free(ran);
 
-   /*
-   printf("myrank=%d, cnt=%d\n",myrank,cnt);
-
-   for(rank=1; rank<nTasks; rank++) 
-      if(myrank==rank) MPI_Send(&cnt,1,MPI_INT,0,myrank,MPI_COMM_WORLD); else ;
+printf("myrank=%d, cnt=%g,minI=%d,maxI=%d,minZ=%g\n",myrank,cnt,minI,D.maxI,D.minZ);
    
-   if(myrank==0) {
-      for(rank=1; rank<nTasks; rank++) {
-         MPI_Recv(&recvInt,1,MPI_INT,rank,rank,MPI_COMM_WORLD,&status);
-	 cnt+=recvInt;
+   if (myrank != 0) { 
+      MPI_Send(&cnt, 1, MPI_DOUBLE, 0, myrank, MPI_COMM_WORLD);
+   } else {
+      double recv=0.0;
+      for(int rank=1; rank<nTasks; ++rank) {
+         MPI_Recv(&recv,1,MPI_DOUBLE,rank,rank,MPI_COMM_WORLD,&status);
+	      cnt += recv;
       }
-   } else ;
-   for(rank=1; rank<nTasks; rank++) 
-      if(myrank==rank) MPI_Send(&aveY,1,MPI_DOUBLE,0,myrank,MPI_COMM_WORLD); else ;
+   }
    
-   if(myrank==0) {
-      for(rank=1; rank<nTasks; rank++) {
-         MPI_Recv(&recvDb,1,MPI_DOUBLE,rank,rank,MPI_COMM_WORLD,&status);
-	 aveY+=recvDb;
-      }
-   } else ;
    if(myrank==0) 
-      printf("beam index = %d, beam charge = %g [pC], aveY=%g [m],cnt=%d, numInBeamlet=%d\n",s,cnt*1.602e-7*numInBeamlet,aveY/(cnt*1.0*numInBeamlet),cnt,numInBeamlet);
-   else ;
-*/
+      printf("beam index = %d, beam charge = %g [pC]\n",s,cnt*1.602e-7);
 }
 
 void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
 {
 
    int myrank,nTasks;
+	MPI_Status status;
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
    MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
 
    int maxH=D.harmony[D.numHarmony-1];
    int numInBeamlet=LL.numInBeamlet;
    double gamma0=LL.energy/mc2+1;
-   double dGam=LL.spread*gamma0;
 
    double current=LL.peakCurrent;		// peak current in a cell
    double bucketZ=D.lambda0*D.numSlice;		     	// size of a big slice
@@ -304,24 +319,50 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    int startI=1;	   
    int endI=1+D.subSliceN;
 
+   double cnt=0.0;
    for(int i=startI; i<endI; ++i) {
       //position define     
       double posZ=(i-startI+minI)*bucketZ+D.minZ;
       double n0=0.0;
+      double En0=0.0;
+      double ESn0=0.0;
+      double EmitN0=0.0;
       if(LL.type==BeamMode::Polygon) {
          for(int l=0; l<LL.znodes-1; ++l) {
             if(posZ>=LL.zpoint[l] && posZ<LL.zpoint[l+1])
                n0=(LL.zn[l+1]-LL.zn[l])/(LL.zpoint[l+1]-LL.zpoint[l])*(posZ-LL.zpoint[l])+LL.zn[l];
          }
-      }
+         for(int l=0; l<LL.Enodes-1; ++l) {
+            if(posZ>=LL.Epoint[l] && posZ<LL.Epoint[l+1])
+               En0=(LL.En[l+1]-LL.En[l])/(LL.Epoint[l+1]-LL.Epoint[l])*(posZ-LL.Epoint[l])+LL.En[l];
+         }
+         gamma0=LL.energy*En0/mc2+1.0;
+         for(int l=0; l<LL.ESnodes-1; ++l) {
+            if(posZ>=LL.ESpoint[l] && posZ<LL.ESpoint[l+1])
+               ESn0=(LL.ESn[l+1]-LL.ESn[l])/(LL.ESpoint[l+1]-LL.ESpoint[l])*(posZ-LL.ESpoint[l])+LL.ESn[l];
+         }
+         for(int l=0; l<LL.EmitNodes-1; ++l) {
+            if(posZ>=LL.EmitPoint[l] && posZ<LL.EmitPoint[l+1])
+               EmitN0=(LL.EmitN[l+1]-LL.EmitN[l])/(LL.EmitPoint[l+1]-LL.EmitPoint[l])*(posZ-LL.EmitPoint[l])+LL.EmitN[l];
+         }
 
-      unsigned int beamlets=LL.numBeamlet*n0;
+      } else if(LL.type==BeamMode::Gaussian) {
+         double phase=std::pow((posZ-LL.posZ)/LL.sigZ,LL.gaussPower);
+         n0=std::exp(-phase);
+         gamma0=(LL.energy+LL.Echirp*(posZ-LL.posZ))/mc2+1.0;
+
+      }
+      double dGam=LL.spread*gamma0*ESn0;
+
+      int beamlets=LL.numBeamlet*n0;
       double remacro = (beamlets >0)
                      ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
       double eNumbers=remacro*numInBeamlet*beamlets;
       if(eNumbers<10) eNumbers=10;  
 
+      cnt += remacro*numInBeamlet*beamlets;
+//if(myrank==0) printf("cnt=%g,remacro=%g, numInBeamlet=%d, beamlets=%d\n",cnt,remacro,numInBeamlet,beamlets);
       size_t totalParticles = beamlets * numInBeamlet;
       auto New = std::make_unique<ptclList>();
 
@@ -341,8 +382,8 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       New->py.resize(totalParticles);
       New->theta.resize(totalParticles);
       New->gamma.resize(totalParticles);
-      New->index.resize(totalParticles);
-      New->core.resize(totalParticles);
+      //New->index.resize(totalParticles);
+      //New->core.resize(totalParticles);
 
       unsigned long ptclIdx=0;
       for(unsigned int b=0; b<beamlets; ++b)  {
@@ -386,6 +427,21 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_qrng_free(q1);
    gsl_qrng_free(q2);
    gsl_rng_free(ran);
+
+printf("myrank=%d, cnt=%g,minI=%d,maxI=%d,minZ=%g\n",myrank,cnt,minI,D.maxI,D.minZ);
+
+   if (myrank != 0) { 
+      MPI_Send(&cnt, 1, MPI_DOUBLE, 0, myrank, MPI_COMM_WORLD);
+   } else {
+      double recv=0.0;
+      for(int rank=1; rank<nTasks; ++rank) {
+         MPI_Recv(&recv,1,MPI_DOUBLE,rank,rank,MPI_COMM_WORLD,&status);
+	      cnt += recv;
+      }
+   }
+   
+   if(myrank==0) 
+      printf("beam index = %d, beam charge = %g [pC]\n",s,cnt*1.602e-7);
 }
 
 /*

@@ -28,8 +28,8 @@ struct ptclList  {
    std::vector<double> py;
    std::vector<double> theta;
    std::vector<double> gamma;
-   std::vector<int> index;
-   std::vector<int> core;
+   //std::vector<int> index;
+   //std::vector<int> core;
    double weight;
    struct ptclList *next = nullptr;
 };
@@ -50,10 +50,18 @@ struct LoadList  {
    bool transFlat;
 
    // For Polygon mode
-   int znodes = 0;
-   std::vector<double> zpoint;
-   std::vector<double> zn;
+   int znodes,Enodes,EmitNodes,ESnodes;
+   std::vector<double> zpoint,zn;
+   std::vector<double> Epoint,En;
+   std::vector<double> ESpoint,ESn;
+   std::vector<double> EmitPoint,EmitN;
 
+   // For Gaussian
+   double sigZ,posZ;
+   double Echirp;
+   int gaussPower;
+
+   struct LoadList *next = nullptr;
 };
    
 
