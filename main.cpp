@@ -90,12 +90,12 @@ int main(int argc, char *argv[])
       }
 
       if(iteration%D.saveStep==0 && iteration>=D.saveStart) {
-         // current time
-         auto now = std::chrono::system_clock::now();
-         std::time_t current_time = std::chrono::system_clock::to_time_t(now);
-         if(myrank==0) {
-            std::cout << std::put_time(std::localtime(&current_time), "%Y-%m-%d %H:%M:%S")                      << std::endl;
-         }
+         // calculation of running time
+         auto end = std::chrono::high_resolution_clock::now();
+         std::chrono::duration<double> elapsed = end - start;
+         double minutes = elapsed.count() / 60.0;
+         if(myrank==0) 
+            std::cout << "running time =" << minutes << " m" << std::endl;
 
          if(D.mode == OperationMode::Static) {
             std::string fileName = "Power" + std::to_string(iteration);
@@ -137,14 +137,20 @@ int main(int argc, char *argv[])
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
       else {
          drift_theta_gamma(D,iteration);
-         std::cout << "iteration=" << iteration
-                   << ", driftON"
-                   << ", K0=" << D.K0
-                   << std::endl;
+         if(myrank==0) {
+            std::cout << "iteration=" << iteration
+                      << ", driftON"
+                      << ", K0=" << D.K0
+                      << std::endl;
+         }
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
      
       periodicParticles(D,iteration);     
+
+      if(D.driftFlag==false && D.mode==OperationMode::Time_Dependent) 
+         shiftField(D,iteration);
+
 
       if(iteration%10==0) {
          if(myrank==0) 
@@ -158,7 +164,7 @@ int main(int argc, char *argv[])
    std::chrono::duration<double> elapsed = end - start;
    double minutes = elapsed.count() / 60.0;
    if(myrank==0) 
-      std::cout << "running time =" << minutes << " m" << std::endl;
+      std::cout << "Total running time =" << minutes << " m !!" << std::endl;
 
    MPI_Finalize();
 

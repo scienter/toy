@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstring>
 #include <cmath>
 #include "mesh.h"
 #include "constants.h"
@@ -14,6 +15,36 @@ void solve_Field_U_3D(Domain &D,
 void solve_Sc_3D(Domain &D,int iteration);
 std::vector<std::vector<cplx>> complexMemoryFlat(int harmony, size_t size);
 
+
+void shiftField(Domain &D,int iteration)
+{
+
+   int N=D.nx*D.ny;
+   int numHarmony=D.numHarmony;
+   int startI=1,  endI=D.subSliceN+1;
+
+   int myrank, nTasks;
+   MPI_Status status;
+   MPI_Comm_size(MPI_COMM_WORLD, &nTasks);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+   const size_t bytesPerSlice = static_cast<size_t>(N) * sizeof(cplx);
+   for(int h=0; h<numHarmony; ++h) 
+      for(int sliceI=endI; sliceI>=startI; --sliceI) {
+         std::memcpy(&D.Ux[h][sliceI*N],&D.Ux[h][(sliceI-1)*N],bytesPerSlice);
+         std::memcpy(&D.Uy[h][sliceI*N],&D.Uy[h][(sliceI-1)*N],bytesPerSlice);
+
+         //int idx=sliceI*N;
+         //for(int j=0; j<N; ++j) {
+         //   D.Ux[h][idx +j]=D.Ux[h][idx -N + j];
+         //   D.Uy[h][idx +j]=D.Uy[h][idx -N + j];
+         //}
+      }
+
+   //MPI_Barrier(MPI_COMM_WORLD);
+   MPI_Transfer1F_Zplus(D.Ux,D.numHarmony,N,endI,startI);
+   MPI_Transfer1F_Zplus(D.Uy,D.numHarmony,N,endI,startI);
+}
 
 void solveField(Domain *D,int iteration)
 {

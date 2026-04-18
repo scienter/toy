@@ -71,9 +71,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
    gsl_qrng *q1 = nullptr;
    gsl_qrng *q2 = nullptr;
    //q1 = gsl_qrng_alloc(gsl_qrng_niederreiter_2,3);
-   //q1=gsl_qrng_alloc(gsl_qrng_sobol,7);	
-   q1=gsl_qrng_alloc(gsl_qrng_halton,7);	
-   //q2=gsl_qrng_alloc(gsl_qrng_sobol,6);	
+   q1=gsl_qrng_alloc(gsl_qrng_sobol,1);	
+   q2=gsl_qrng_alloc(gsl_qrng_sobol,6);	
 
    unsigned long randskip = 0;   
    if (LL.randONOFF==false) {
@@ -84,10 +83,11 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       srand(static_cast<unsigned int>(time(nullptr)));
       randskip = static_cast<unsigned long>(rand()) % (nTasks * 2UL);
    }
-   double v1[7] = {0.0};
+   double v1[1] = {0.0};
+   double v2[6] = {0.0};
    for (unsigned long ii = 0; ii < randskip; ++ii) {
       gsl_qrng_get(q1, v1);
-      //gsl_qrng_get(q2, v2);
+      gsl_qrng_get(q2, v2);
    }
   
    double cnt=0.0; 
@@ -177,14 +177,14 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       double x,y,xPrime,yPrime;
       for(unsigned int b=0; b<beamlets; ++b)  {
          gsl_qrng_get(q1,v1);
-         //gsl_qrng_get(q2,v2);
+         gsl_qrng_get(q2,v2);
 
-         double theta0 = v1[4]*dPhi;
-         double r1  = v1[0]; if (r1 == 0.0) r1 = 1e-10;
-         double r2  = v1[1];
-         double pr1 = v1[2]; if (pr1 == 0.0) pr1 = 1e-10;
-         double pr2 = v1[3];
-         double gam = v1[5]; if (gam == 0.0) gam = 1e-10;
+         double theta0 = v1[0]*dPhi;
+         double r1  = v2[0]; if (r1 == 0.0) r1 = 1e-10;
+         double r2  = v2[1];
+         double pr1 = v2[2]; if (pr1 == 0.0) pr1 = 1e-10;
+         double pr2 = v2[3];
+         double gam = v2[4]; if (gam == 0.0) gam = 1e-10;
          
          if (LL.transFlat == false)  {  // Transverse Gaussian
             // Position (Box-Muller)
@@ -208,8 +208,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
          }
 
          // Energy spread
-         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v1[6]*2.0*M_PI);
-         gam=gamma0+dGam*tmp*ESn0;
+         double tmp=std::sqrt(-2.0*std::log(gam))*std::cos(v2[5]*2.0*M_PI);
+         gam=gamma0+dGam*tmp;
 
          double pz=sqrt((gam*gam-1.0)/(1.0+xPrime*xPrime+yPrime*yPrime));
          double px=xPrime*pz;
@@ -246,7 +246,7 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
    }			//End of for(i)
 
    gsl_qrng_free(q1);
-   //gsl_qrng_free(q2);
+   gsl_qrng_free(q2);
    gsl_rng_free(ran);
 
 printf("myrank=%d, cnt=%g,minI=%d,maxI=%d,minZ=%g\n",myrank,cnt,minI,D.maxI,D.minZ);

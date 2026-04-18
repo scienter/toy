@@ -160,6 +160,12 @@ void transversePush(Domain *D,int iteration);
 void calculate_twiss(Domain &D,int iteration);
 void wakeFunction(Domain *D,int iteration);
 void updateWakeField(Domain *D,int iteration);
+void shiftField(Domain &D,int iteration);
+void MPI_Transfer1F_Zplus(std::vector<std::vector<cplx>>& f1,
+                          int harmony,
+                          int N,
+                          int fromI,
+                          int toI);
 
 void saveParticleHDF(Domain *D,int iteration);
 void saveFieldHDF(Domain *D,int iteration);

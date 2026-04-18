@@ -214,12 +214,12 @@ void parameterSetting(Domain *D,const char *input)
    if(FindParameters("Seed",1,"focus",input,str)) D->focus=atof(str);
    else  { printf("In [Seed], focus=? [m].\n");  fail=true;   }
    if(FindParameters("Seed",1,"loading_harmonics",input,str)) D->loadH=atoi(str);
-   else  { printf("In [Seed], loading_harmonics=? [example : 1].\n");  fail=true;   }
+   else D->loadH=1;
    double ue=0.0;
    if(FindParameters("Seed",1,"polarity",input,str)) ue=atof(str);
-   else  { printf("In [Seed], polarity=? [0 ~ 1].\n");  fail=true;   }
+   else ue=0.0;
    if(FindParameters("Seed",1,"laser_alpha",input,str)) D->laserAlpha=atof(str);
-   else  { printf("In [Seed], laser_alpha=? [1 : X axis, -1 : Y axis].\n");  fail=true;   }
+   else D->laserAlpha=-1.0;
    double area=2.0*M_PI*D->spotSigR*D->spotSigR;
    D->a0=sqrt(D->P0*2.0*Z0/area)*eCharge/(eMass*velocityC*velocityC*D->ks*D->loadH);
    // I(r) = I0 * exp(-r^2 / (2 * sigR^2) )  ==> P0 = I0 * 2*pi*sigR^2

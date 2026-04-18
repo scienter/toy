@@ -136,8 +136,6 @@ void drift_theta_gamma(Domain &D,int iteration)
    double ue=D.ue;
    double wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
    std::vector<cplx> Ux(numHarmony),Uy(numHarmony);
-
-   //printf("iteration=%d, driftON, K0=%g\n",iteration,K0);
    
    for(int s=0; s<D.nSpecies; ++s)
    {
