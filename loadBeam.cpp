@@ -145,7 +145,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       double remacro = (beamlets >0)
                      ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
-      double eNumbers=remacro*numInBeamlet*beamlets;
+      //double eNumbers=remacro*numInBeamlet*beamlets;
+      double eNumbers=remacro*numInBeamlet;
       if(eNumbers<10) eNumbers=10;  
 
       cnt += remacro*numInBeamlet*beamlets;
@@ -298,7 +299,6 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
 
    //q1 = gsl_qrng_alloc(gsl_qrng_niederreiter_2,3);
    q1=gsl_qrng_alloc(gsl_qrng_sobol,3);	
-   q2=gsl_qrng_alloc(gsl_qrng_sobol,2);	
 
    unsigned long randskip = 0;   
    if (LL.randONOFF==false) {
@@ -358,7 +358,8 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
       double remacro = (beamlets >0)
                      ? macro*static_cast<double>(LL.numBeamlet)/static_cast<double>(beamlets)*n0
                      : 0.0;
-      double eNumbers=remacro*numInBeamlet*beamlets;
+      //double eNumbers=remacro*numInBeamlet*beamlets;
+      double eNumbers=remacro*numInBeamlet;
       if(eNumbers<10) eNumbers=10;  
 
       cnt += remacro*numInBeamlet*beamlets;
@@ -425,7 +426,6 @@ void loadBeam1D(Domain &D,LoadList &LL,int s,int iteration)
    }			//End of for(i)
 
    gsl_qrng_free(q1);
-   gsl_qrng_free(q2);
    gsl_rng_free(ran);
 
 printf("myrank=%d, cnt=%g,minI=%d,maxI=%d,minZ=%g\n",myrank,cnt,minI,D.maxI,D.minZ);

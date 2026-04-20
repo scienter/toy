@@ -251,7 +251,8 @@ void push_theta_gamma_3D(Domain &D,int iteration)
             double pr2= px*px + py*py;
             double th0=p->theta[n]; 
             double gam0=p->gamma[n];
-    	      double K2=1.0 + pr2 + (1.0+ue*ue)*K0*K0*0.5; //*(1.0+ku*ku*0.5*r2);
+    	      double K2=1.0 + pr2 + (1.0+ue*ue)*K0*K0*0.5*(1.0+ku*ku*0.5*r2);
+            xi=ks/ku*K0*K0/(8.0*gam0*gam0)*(1.0-ue*ue);
 
             double xi2 = std::sqrt(2.0) * K0 / (1.0+K0*K0*0.5*(1.0+ue*ue))
                        * std::sqrt((1+K0_alpha)*(px*px+ue*ue*py*py)+(1-K0_alpha)*(px*px*ue*ue+py*py));
@@ -348,7 +349,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   }  //End of harmonics
 
                   k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*std::sqrt(ue*ue+1.0)*sumTh);
-                  k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG + e_mc2*sumEzPart;
+                  k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG; // + e_mc2*sumEzPart;
                }   //End of Runge-Kutta
                
                double tmpTh=dz/6.0 * (k_th[1] + 2.0*k_th[2] + 2.0*k_th[3] + k_th[4]);

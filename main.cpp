@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    while(iteration<D.maxStep) 
    {
       // Updating wake_field
-      if(iteration%D.wakeFieldStep==0) {
+      if(iteration%D.wakeFieldStep==0 && D.mode==OperationMode::Time_Dependent) {
          updateWakeField(&D,iteration);
       }
 
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
      
-      periodicParticles(D,iteration);     
+      //periodicParticles(D,iteration);     
 
       if(D.driftFlag==false && D.mode==OperationMode::Time_Dependent) 
          shiftField(D,iteration);
