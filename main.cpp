@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
       calculate_twiss(D,iteration);
       updatebFactor(D,iteration);
 
-      solveField(&D,iteration);
+      //solveField(&D,iteration);
       //std::cout << "iteration=" << iteration << "after solveField" << std::endl;
 
       updateK_quadG(&D,iteration,0);

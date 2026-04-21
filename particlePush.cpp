@@ -235,11 +235,15 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    cplx fx=0.0+I*0.0;
    cplx fy=0.0+I*0.0;
    std::vector<cplx> Ux(numHarmony),Uy(numHarmony),Em(L);
+   double wakeE=0.0;
 
    for(int s=0; s<D.nSpecies; ++s)
    {
       for(int sliceI=startI; sliceI<endI; ++sliceI)
       {
+         if(D.wakeONOFF==true) 
+            wakeE=D.wakeE[sliceI-startI+minI]/(mc2*1.0e6);
+
          p = D.particle[sliceI].head[s]->pt;         
          const size_t cnt=p->x.size();
          for(size_t n=0; n<cnt; ++n) {
@@ -345,7 +349,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                      }
                      cplx tmpComp=std::exp(I*(1.0*H)*(th+Phi*0.5))*(etaX*fx*Ux[h]-etaY*fy*Uy[h]);
                      sumTh += std::real(I*tmpComp)/(1.0*H);
-                     sumG += std::real(tmpComp)/(1.0*gam);
+                     sumG += std::real(tmpComp)/(2.0*gam);
                   }  //End of harmonics
 
                   k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*std::sqrt(ue*ue+1.0)*sumTh);
@@ -359,7 +363,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                }
 
                p->theta[n]+=tmpTh; 
-               double tmpGam=dz/6.0 * (k_gam[1]+2.0*k_gam[2]+2.0*k_gam[3]+k_gam[4]); //-dz*wakeE; 
+               double tmpGam=dz/6.0 * (k_gam[1]+2.0*k_gam[2]+2.0*k_gam[3]+k_gam[4]) - dz*wakeE; 
                p->gamma[n]+=tmpGam;
             }  // End of if(idxI,idxJ)
          }   // End of for(cntN)
@@ -422,11 +426,15 @@ void push_theta_gamma_1D(Domain &D,int iteration)
    cplx fx=0.0+I*0.0;
    cplx fy=0.0+I*0.0;
    std::vector<cplx> Ux(numHarmony),Uy(numHarmony),Em(L);
+   double wakeE=0.0;
 
    for(int s=0; s<D.nSpecies; ++s)
    {
       for(int sliceI=startI; sliceI<endI; ++sliceI) 
       {
+         if(D.wakeONOFF==true)
+            wakeE=D.wakeE[sliceI-startI+minI]/(mc2*1.0e6);
+
          for(int ll=0; ll<L; ++ll) 
 	         Em[ll]=D.Ez[ll][sliceI];
          
@@ -483,7 +491,7 @@ void push_theta_gamma_1D(Domain &D,int iteration)
 
                   cplx tmpComp=std::exp(I*(1.0*H)*(th+Phi*0.5))*(etaX*fx*Ux[h]-etaY*fy*Uy[h]);
                   sumTh += std::real(I*tmpComp)/(1.0*H);
-                  sumG += std::real(tmpComp)/(1.0*gam);
+                  sumG += std::real(tmpComp)/(2.0*gam);
                }  //End of harmonics
 
                k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*std::sqrt(ue*ue+1.0)*sumTh);
@@ -497,7 +505,7 @@ void push_theta_gamma_1D(Domain &D,int iteration)
                MPI_Abort(MPI_COMM_WORLD,1);
             }
             p->theta[n]+=tmpTh; 
-            double tmpGam=dz/6.0 * (k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]); //-dz*wakeE; 
+            double tmpGam=dz/6.0 * (k_gam[1]+2*k_gam[2]+2*k_gam[3]+k_gam[4]) - dz*wakeE; 
             p->gamma[n]+=tmpGam;
          }
          

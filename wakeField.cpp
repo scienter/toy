@@ -35,9 +35,10 @@ void updateWakeField(Domain *D,int iteration)
    if(myrank==0) {
       double z0 = iteration*D->dz;
       out = fopen("wakeE","w");
+      fprintf(out,"#s[m]        E[V/m]\n");
       for(int i=0; i<sliceN; ++i)  {
          double z = z0 + i*dZ+minZ;
-         fprintf(out,"%g %g\n",z,D->wakeE[i]);
+         fprintf(out,"%12.4g %12.4g\n",z,D->wakeE[i]);
       }
       printf("wakeE is made.\n");
       fclose(out);
@@ -95,9 +96,9 @@ void wakeFunction(Domain *D,int iteration)
                double reCal=std::real(ccal);
                if(std::isnan(reCal)) { 
                   printf("cal=%g, x=%g, k=%g, dino=%g\n",reCal,x,k,std::real(cdino)); 
-                  exit(0); 
+                  exit(0);
                }
-            }
+            } 
             csum+=ccal*dX;
          }
          impZ[i]=std::real(csum);
@@ -144,7 +145,7 @@ void wakeFunction(Domain *D,int iteration)
       D->wakeF[i]+=sum*coef;
    }
 
-   if(myrank==0) {
+   if(myrank==10) {
       out = fopen("wakeF","w");
       fprintf(out,"#s[m]        W[V/m.C]\n");
       for(int i=0; i<sliceN; ++i)  {
@@ -193,7 +194,7 @@ void makeDensity(Domain &D,int iteration)
    std::vector<double> global_den(sliceN, 0.0);
    MPI_Reduce(local_den.data(),global_den.data(),sliceN,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
    //copying global_den to D->den
-   if(myrank=0) {
+   if(myrank==0) {
       D.den = std::move(global_den);
    }
    MPI_Bcast(D.den.data(),sliceN,MPI_DOUBLE,0,MPI_COMM_WORLD);
@@ -208,12 +209,13 @@ void makeDensity(Domain &D,int iteration)
 
    if(myrank==0) {
       out = fopen("normDen","w");
+      fprintf(out,"#s[m]        numDensity[ea/m]\n");
       double z0 = iteration*D.dz;
       double bucketZ = D.numSlice*D.lambda0;
 
       for(int sliceI=0; sliceI<sliceN; ++sliceI) {
          double z = z0 + sliceI*bucketZ + D.minZ;
-         fprintf(out,"%g %g\n",z,D.den[sliceI]);
+         fprintf(out,"%12.4g %12.4g\n",z,D.den[sliceI]);
       }
       fclose(out);
    } else ;
