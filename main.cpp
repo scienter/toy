@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
       calculate_twiss(D,iteration);
       updatebFactor(D,iteration);
 
-      //solveField(&D,iteration);
+      solveField(&D,iteration);
       //std::cout << "iteration=" << iteration << "after solveField" << std::endl;
 
       updateK_quadG(&D,iteration,0);
@@ -135,15 +135,7 @@ int main(int argc, char *argv[])
          transversePush(&D,iteration);
 
       if(D.driftFlag==false) push_theta_gamma(&D,iteration);
-      else {
-         drift_theta_gamma(D,iteration);
-         if(myrank==0) {
-            std::cout << "iteration=" << iteration
-                      << ", driftON"
-                      << ", K0=" << D.K0
-                      << std::endl;
-         }
-      }
+      else                   drift_theta_gamma(D,iteration);
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
      
       periodicParticles(D,iteration);     

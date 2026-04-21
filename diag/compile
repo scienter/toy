@@ -1,42 +1,43 @@
 #!/bin/bash
 
-# ==================== setting part ====================
+# ==================== Home or Beam Server ====================
 # HDF5 pathe (correct if you need)
-HDF5_INCLUDE="/opt/hdf5/1.14.5/include"
-HDF5_LIB="/opt/hdf5/1.14.5/lib"
 
-# MPI path
-MPICXX="/opt/ompi/5.0.6/bin/mpicxx"
+if [[ "${1,,}" == "beam" ]]; then
+   # For Beam Server
+   HDF5_INCLUDE="/opt/hdf5/1.14.5/include"
+   HDF5_LIB="/opt/hdf5/1.14.5/lib"
+
+   # MPI path
+   MPICXX="/opt/ompi/5.0.6/bin/mpicxx"
+
+else
+   # For Home computer
+   HDF5_INCLUDE="/usr/include/hdf5/openmpi"
+   HDF5_LIB="/usr/lib/x86_64-linux-gnu/hdf5/openmpi"
+
+   # MPI path
+   MPICXX="/usr/bin/mpicxx"
+
+fi
+
+# =====================================================
 
 # compile option
-CFLAGS="-I${HDF5_INCLUDE} -O2 -Wall -std=c++17"
-LDFLAGS="-L${HDF5_LIB} -lhdf5 -lm"
-
+CFLAGS="-I${HDF5_INCLUDE} -O3 -march=native -mtune=native -Wall -std=c++17 -ffast-math"
+LDFLAGS="-L${HDF5_LIB} -lhdf5 -lhdf5_hl -lz -ldl -lm"
 
 # ==================== start build ====================
 
 echo "=== FEL codes (C++) 빌드 시작 ==="
 
-# felParticle 빌드
+# felParticle build
 echo "Building felParticle..."
 ${MPICXX} -o felParticle felParticle.cpp ${CFLAGS} ${LDFLAGS}
 echo "'felParticle' is made."
 
+# felField build
+echo "Building felField..."
+${MPICXX} -o felField felField.cpp ${CFLAGS} ${LDFLAGS}
+echo "'felField' is made."
 
-#/opt/ompi/5.0.6/bin/mpicc -o felParticle felParticle.c -lm -lhdf5 ${CFLAGS} ${LDFLAGS}
-#echo 'felParticle is made.'
-
-#/opt/ompi/5.0.6/bin/mpicc -o felField felField.c -lm -lhdf5 ${CFLAGS} ${LDFLAGS}
-#echo 'felField is made.'
-
-#/opt/ompi/5.0.6/bin/mpicc -o farField farField.c -lm -lhdf5 ${CFLAGS} ${LDFLAGS}
-#echo 'farField is made.'
-
-#gcc -o fft fft.c -lm
-#echo 'fft is made.'
-
-#gcc -o fieldFFT fieldFFT.c -lm -lfftw3 -I/opt/fftw/3.3.8/include -L/opt/fftw/3.3.8/lib
-#echo "two is made"
-
-#/opt/ompi/5.0.6/bin/mpicc -o phase1D phase1D.c -lm -lhdf5 ${CFLAGS} ${LDFLAGS}
-#echo 'phase1D is made.'

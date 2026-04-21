@@ -128,19 +128,22 @@ void drift_theta_gamma(Domain &D,int iteration)
    double gamR=D.gamR;
    double dx=D.dx, dy=D.dy;
    double minX=D.minX, minY=D.minY;
+   int minI = D.minI;
 
    int startI=1, endI=D.subSliceN+1;
    int numHarmony=D.numHarmony;
    
-   double K0=D.K0;
-   double ue=D.ue;
    double wx[2]={0.0,0.0}, wy[2]={0.0,0.0};
    std::vector<cplx> Ux(numHarmony),Uy(numHarmony);
    
+   double wakeE=0.0;
    for(int s=0; s<D.nSpecies; ++s)
    {
       for(int sliceI=startI; sliceI<endI; ++sliceI)
       {
+         if(D.wakeONOFF==true) 
+            wakeE=D.wakeE[sliceI-startI+minI]/(mc2*1.0e6);
+
          auto& p = D.particle[sliceI].head[s]->pt;         
          const size_t cnt=p->x.size();
          for(size_t n=0; n<cnt; ++n) {
@@ -152,20 +155,20 @@ void drift_theta_gamma(Domain &D,int iteration)
             double pr2= px*px + py*py;
             double th0=p->theta[n]; 
             double gam0=p->gamma[n];
-    	      double K2=1.0 + pr2; //*(1.0+ku*ku*0.5*r2);
+            double K2=1.0 + pr2; //*(1.0+ku*ku*0.5*r2);
    
             int idxI=(int)((x0-minX)/dx);
-	         int idxJ=(int)((y0-minY)/dy);
+            int idxJ=(int)((y0-minY)/dy);
             wx[1]=(x0-minX)/dx-idxI; wx[0]=1.0-wx[1];
             wy[1]=(y0-minY)/dy-idxJ; wy[0]=1.0-wy[1];
-	         if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
+            if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
                for(int h=0; h<numHarmony; ++h)  {				
                   Ux[h]=0.0+I*0.0;
                   Uy[h]=0.0+I*0.0;
                   for(int ii=0; ii<2; ++ii) 
                      for(int jj=0; jj<2; ++jj)  {
-      			         Ux[h]+=D.Ux[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
-      			         Uy[h]+=D.Uy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+                        Ux[h]+=D.Ux[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+                        Uy[h]+=D.Uy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
                      }
                }
                double sumU2=0.0;
@@ -177,10 +180,18 @@ void drift_theta_gamma(Domain &D,int iteration)
                }
                double tmp = ku-ks/(2.0*gamR*gamR)*(K2+sumU2);
                p->theta[n]+=tmp*dz;
+               p->theta[n]-=dz*wakeE;
             }
          }    //End of for(n)
       }       //End of for(sliceI)
    }          //End of for(s)
+
+   if(myrank==0) {
+      std::cout << "iteration=" << iteration
+                << ", driftON"
+                << ", K0=" << D.K0
+                << std::endl;
+   }
 }
 
 
@@ -193,7 +204,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
    
    int startI=1, endI=D.subSliceN+1;
    int numHarmony=D.numHarmony;
-   int minI=D.minI, maxI=D.maxI;
+   int minI=D.minI;
    int nx = D.nx, ny = D.ny, nr = D.nr;
    int N=nx*ny;
    int L=D.SCLmode;
@@ -255,7 +266,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
             double pr2= px*px + py*py;
             double th0=p->theta[n]; 
             double gam0=p->gamma[n];
-    	      double K2=1.0 + pr2 + (1.0+ue*ue)*K0*K0*0.5*(1.0+ku*ku*0.5*r2);
+    	    double K2=1.0 + pr2 + (1.0+ue*ue)*K0*K0*0.5*(1.0+ku*ku*0.5*r2);
             xi=ks/ku*K0*K0/(8.0*gam0*gam0)*(1.0-ue*ue);
 
             double xi2 = std::sqrt(2.0) * K0 / (1.0+K0*K0*0.5*(1.0+ue*ue))
@@ -268,10 +279,10 @@ void push_theta_gamma_3D(Domain &D,int iteration)
             cplx expM=std::conj(expP);
 
             int idxI=(int)((x0-minX)/dx);
-	         int idxJ=(int)((y0-minY)/dy);
+	    int idxJ=(int)((y0-minY)/dy);
             wx[1]=(x0-minX)/dx-idxI; wx[0]=1.0-wx[1];
             wy[1]=(y0-minY)/dy-idxJ; wy[0]=1.0-wy[1];
-	         if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
+	    if(idxI>=0 && idxI<nx-1 && idxJ>=0 && idxJ<ny-1)  {
                
                double r=std::sqrt(r2);
                int idxR = r/dr + 0.5;
@@ -297,8 +308,8 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   Uy[h]=0.0+I*0.0;
                   for(int ii=0; ii<2; ++ii) 
                      for(int jj=0; jj<2; ++jj)  {
-      			         Ux[h]+=D.Ux[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
-      			         Uy[h]+=D.Uy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+      	                Ux[h]+=D.Ux[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
+                        Uy[h]+=D.Uy[h][sliceI*N + (idxJ+jj)*nx + (idxI+ii)]*wx[ii]*wy[jj];
                      }
                }
                double sumU2=0.0;
@@ -353,7 +364,7 @@ void push_theta_gamma_3D(Domain &D,int iteration)
                   }  //End of harmonics
 
                   k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*std::sqrt(ue*ue+1.0)*sumTh);
-                  k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG; // + e_mc2*sumEzPart;
+                  k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG + e_mc2*sumEzPart;
                }   //End of Runge-Kutta
                
                double tmpTh=dz/6.0 * (k_th[1] + 2.0*k_th[2] + 2.0*k_th[3] + k_th[4]);
@@ -374,9 +385,6 @@ void push_theta_gamma_3D(Domain &D,int iteration)
 
 }
 
-
-
-
 void push_theta_gamma_1D(Domain &D,int iteration)
 {
    ptclList *p;
@@ -387,7 +395,6 @@ void push_theta_gamma_1D(Domain &D,int iteration)
    int startI=1;       
    int endI=D.subSliceN+1;
    int minI=D.minI;   
-   int maxI=D.maxI;
    double ue=D.ue;
    double ks=D.ks;
    double ku=D.ku;
@@ -495,7 +502,7 @@ void push_theta_gamma_1D(Domain &D,int iteration)
                }  //End of harmonics
 
                k_th[m]=ku-ks/(2.0*gam*gam)*(K2+sumU2+K0*std::sqrt(ue*ue+1.0)*sumTh);
-               k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG; // + e_mc2*sumEzPart;
+               k_gam[m]=ks*K0*std::sqrt(ue*ue+1.0)*sumG + e_mc2*sumEzPart;
             }   //End of Runge-Kutta 
    
             double tmpTh=dz/6.0 * (k_th[1]+2.0*k_th[2]+2.0*k_th[3]+k_th[4]);
