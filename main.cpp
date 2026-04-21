@@ -146,11 +146,10 @@ int main(int argc, char *argv[])
       }
       //std::cout << "iteration=" << iteration << "push_theta_gamma" << std::endl;
      
-      //periodicParticles(D,iteration);     
+      periodicParticles(D,iteration);     
 
       if(D.driftFlag==false && D.mode==OperationMode::Time_Dependent) 
          shiftField(D,iteration);
-
 
       if(iteration%10==0) {
          if(myrank==0) 

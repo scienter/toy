@@ -20,6 +20,7 @@ echo "=== FEL codes (C++) 빌드 시작 ==="
 # felParticle 빌드
 echo "Building felParticle..."
 ${MPICXX} -o felParticle felParticle.cpp ${CFLAGS} ${LDFLAGS}
+echo "'felParticle' is made."
 
 
 #/opt/ompi/5.0.6/bin/mpicc -o felParticle felParticle.c -lm -lhdf5 ${CFLAGS} ${LDFLAGS}

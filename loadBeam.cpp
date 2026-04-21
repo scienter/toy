@@ -92,6 +92,8 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
   
    double cnt=0.0; 
    for(int sliceI=startI; sliceI<endI; ++sliceI) {
+
+
       //position define     
       double n0=0.0;
       double En0=0.0;
@@ -152,7 +154,7 @@ void loadBeam3D(Domain &D,LoadList &LL,int s,int iteration)
       cnt += remacro*numInBeamlet*beamlets;
 //if(myrank==0) printf("cnt=%g,remacro=%g, numInBeamlet=%d, beamlets=%d\n",cnt,remacro,numInBeamlet,beamlets);
    
-      size_t totalParticles=LL.numBeamlet*LL.numInBeamlet;
+      size_t totalParticles=beamlets*LL.numInBeamlet;
       auto New = std::make_unique<ptclList>();
 
       // head[s] is nullptr, the generate new.

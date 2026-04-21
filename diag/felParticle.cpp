@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
       int sliceN = 0;
       int nSpecies = 0;
       size_t totalCnt = 0;
-      double minZ = 0.0, dz = 0.0, dPhi = 0.0;
+      double minZ = 0.0, dz = 0.0, dPhi = 0.0, bucketZ = 0.0;
 
       restoreMeta(&nSpecies, 1, fileName, "nSpecies");
       restoreMeta(&sliceN,   1, fileName, "sliceN");
@@ -54,11 +54,13 @@ int main(int argc, char *argv[])
       restoreMeta(&minZ,     1, fileName, "minZ");
       restoreMeta(&dz,       1, fileName, "dz");
       restoreMeta(&dPhi,     1, fileName, "dPhi");
+      restoreMeta(&bucketZ,  1, fileName, "bucketZ");
       
       for(int s=0; s<nSpecies; ++s) {
          // outFile setting
          std::string outFile = std::to_string(s) + "Particle" + std::to_string(step);
          FILE* out = fopen(outFile.c_str(), "w");
+         fprintf(out,"# z = %g, \n",minZ + step*dz);
 
          std::string dataName = std::to_string(s);
 
@@ -69,7 +71,7 @@ int main(int argc, char *argv[])
          size_t subP = totalCnt / division;
          std::cout << "step=" << step
                    << ", s=" << s
-                   << "totalCnt=" << totalCnt
+                   << ", original totalCnt=" << totalCnt
                    << std::endl;
 
          // distribution of particles
@@ -84,7 +86,7 @@ int main(int argc, char *argv[])
             startPos[n] = startPos[n-1] + subCnt[n-1];
          }
 
-         for (int n = 1; n < division; ++n) {
+         for (int n = 0; n < division; ++n) {
             std::vector<double> data(subCnt[n] * numData);
             
             restore_Particle_HDF(data.data(), fileName, dataName,
@@ -102,10 +104,10 @@ int main(int argc, char *argv[])
                const int    sliceI = static_cast<int>(data[i * numData + 6]);
                const double weight = data[i * numData + 7];
 
-               if(idx%skipCnt==0) {
+               if(idx % static_cast<size_t>(skipCnt) == 0) {
                   double th = sliceI * dPhi + theta;
-                  fprintf(out,"%g %g %g %g %g %g %g\n",
-                               th, x, y, gamma, px, py, weight);
+                  fprintf(out,"%.6g %g %g %g %g %g %g\n",
+                               th*bucketZ/dPhi, x, y, gamma, px, py, weight);
                }
             }
             std::printf("step=%d, division status is %d/%d.\n", step, n+1, division);
