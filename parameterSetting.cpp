@@ -120,7 +120,7 @@ void parameterSetting(Domain *D,const char *input)
 
    if(FindParameters("Domain",1,"num_harmony",input,str)) D->numHarmony=atoi(str);
    else { D->numHarmony=1; }
-	D->harmony = new int[D->numHarmony];
+   D->harmony.resize(D->numHarmony);
    for(i=0; i<D->numHarmony; i++) {
       std::string param_name = "harmony" + std::to_string(i);
       char buf[100] = {};

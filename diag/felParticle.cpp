@@ -17,7 +17,7 @@ void restoreMeta(T* data, int dataCnt,
                  const std::string& fileName,
                  const std::string& dataName);
 template<typename T>
-void restore_Particle_HDF(T* data,
+void restore_HDF(T* data,
                           const std::string& fileName,
                           const std::string& dataName,
                           int totalCnt,
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
          for (int n = 0; n < division; ++n) {
             std::vector<double> data(subCnt[n] * numData);
             
-            restore_Particle_HDF(data.data(), fileName, dataName,
+            restore_HDF(data.data(), fileName, dataName,
                                  totalCnt, subCnt[n], startPos[n], numData);
 
             for (size_t i = 0; i < subCnt[n]; ++i)
@@ -176,7 +176,7 @@ void restore_attr_HDF(T* cnt,
 
 
 template<typename T>
-void restore_Particle_HDF(T* data,
+void restore_HDF(T* data,
                           const std::string& fileName,
                           const std::string& dataName,
                           int totalCnt,

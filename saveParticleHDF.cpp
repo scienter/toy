@@ -5,23 +5,24 @@
 #include <mpi.h>
 #include <hdf5.h>
 #include <hdf5_hl.h>
+#include <type_traits>
 
 #include "mesh.h"
 #include "constants.h"
 
-void saveIntMeta(const std::string& fileName,
-                    const std::string& dataName,
-                    const int *data,
-                    int dataCnt);
-void saveDoubleMeta(const std::string& fileName,
-                    const std::string& dataName,
-                    const double *data,
-                    int dataCnt);
+template<typename T>
+void saveMeta(const std::string& fileName,
+              const std::string& dataName,
+              T *data,
+              int dataCnt);
+
+template<typename T>
 void save_attr_HDF(const std::string& fileName,
                    const std::string& dataName,
                    const std::string& attrName,
-                   const int64_t* data,
+                   T *data,
                    int dataCnt);
+                   //const int64_t* data,
 
 void saveParticleHDF(Domain *D,int iteration)
 {
@@ -155,25 +156,26 @@ void saveParticleHDF(Domain *D,int iteration)
       double bucketZ=D->lambda0*D->numSlice;
       double dPhi=2*M_PI*D->numSlice;
 
-      saveDoubleMeta(fileName,"minZ",&D->minZ,1);
-      saveDoubleMeta(fileName,"dz",&D->dz,1);
-      saveDoubleMeta(fileName,"bucketZ",&bucketZ,1);
-      saveDoubleMeta(fileName,"dPhi",&dPhi,1);
-      saveDoubleMeta(fileName,"lambda0",&D->lambda0,1);
-      saveDoubleMeta(fileName,"gamma0",gam0P.data(),D->nSpecies);
+      saveMeta(fileName,"minZ",&D->minZ,1);
+      saveMeta(fileName,"dz",&D->dz,1);
+      saveMeta(fileName,"bucketZ",&bucketZ,1);
+      saveMeta(fileName,"dPhi",&dPhi,1);
+      saveMeta(fileName,"lambda0",&D->lambda0,1);
+      saveMeta(fileName,"gamma0",gam0P.data(),D->nSpecies);
 
-      saveIntMeta(fileName,"numData",&dataCnt,1);
-      saveIntMeta(fileName,"nSpecies",&D->nSpecies,1);
-      saveIntMeta(fileName,"sliceN",&D->sliceN,1);
+      saveMeta(fileName,"numData",&dataCnt,1);
+      saveMeta(fileName,"nSpecies",&D->nSpecies,1);
+      saveMeta(fileName,"sliceN",&D->sliceN,1);
    }    
 
    if(myrank==0) printf("%s is made.\n",fileName);
 }
 
-void saveIntMeta(const std::string& fileName,
-                    const std::string& dataName,
-                    const int *data,
-                    int dataCnt)
+template<typename T>
+void saveMeta(const std::string& fileName,
+              const std::string& dataName,
+              T *data,
+              int dataCnt)
 {
    int myrank;
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -183,16 +185,28 @@ void saveIntMeta(const std::string& fileName,
    hsize_t metaDim[1] = {static_cast<hsize_t>(dataCnt)};
    hid_t filespace = H5Screate_simple(1,metaDim,nullptr);
 
+   // HDF5 type sellection in auto
+   hid_t mem_type = H5T_NATIVE_INT;        //default
+   if constexpr (std::is_same_v<T, double>) {
+      mem_type = H5T_NATIVE_DOUBLE;
+   }
+   else if constexpr (std::is_same_v<T, float>) {
+      mem_type = H5T_NATIVE_FLOAT;
+   }
+   else if constexpr (std::is_same_v<T, long>) {
+      mem_type = H5T_NATIVE_LONG;
+   }
+
    hid_t dset_id = H5Dcreate2(file_id,
                               dataName.c_str(),
-                              H5T_NATIVE_INT,
+                              mem_type,
                               filespace,
                               H5P_DEFAULT,
                               H5P_DEFAULT,
                               H5P_DEFAULT);
 
    herr_t status = H5Dwrite(dset_id,
-                            H5T_NATIVE_INT,
+                            mem_type,
                             H5S_ALL,
                             H5S_ALL,
                             H5P_DEFAULT,
@@ -203,43 +217,11 @@ void saveIntMeta(const std::string& fileName,
    H5Fclose(file_id);
 }
 
-void saveDoubleMeta(const std::string& fileName,
-                    const std::string& dataName,
-                    const double *data,
-                    int dataCnt)
-{
-   int myrank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-
-   hid_t file_id = H5Fopen(fileName.c_str(),H5F_ACC_RDWR,H5P_DEFAULT);
-
-   hsize_t metaDim[1] = {static_cast<hsize_t>(dataCnt)};
-   hid_t filespace = H5Screate_simple(1,metaDim,nullptr);
-
-   hid_t dset_id = H5Dcreate2(file_id,
-                              dataName.c_str(),
-                              H5T_NATIVE_DOUBLE,
-                              filespace,
-                              H5P_DEFAULT,
-                              H5P_DEFAULT,
-                              H5P_DEFAULT);
-
-   herr_t status = H5Dwrite(dset_id,
-                            H5T_NATIVE_DOUBLE,
-                            H5S_ALL,
-                            H5S_ALL,
-                            H5P_DEFAULT,
-                            data);
-
-   H5Dclose(dset_id);
-   H5Sclose(filespace);
-   H5Fclose(file_id);
-}
-
+template<typename T>
 void save_attr_HDF(const std::string& fileName,
                    const std::string& dataName,
                    const std::string& attrName,
-                   const int64_t* data,
+                   T *data,
                    int dataCnt)
 {
    int myrank, nTasks;
@@ -256,16 +238,28 @@ void save_attr_HDF(const std::string& fileName,
    hsize_t dims = static_cast<hsize_t>(dataCnt);
    hid_t dataspace_id = H5Screate_simple(1,&dims,nullptr);
 
+   // HDF5 type sellection in auto
+   hid_t mem_type = H5T_NATIVE_INT;        //default
+   if constexpr (std::is_same_v<T, double>) {
+      mem_type = H5T_NATIVE_DOUBLE;
+   }
+   else if constexpr (std::is_same_v<T, float>) {
+      mem_type = H5T_NATIVE_FLOAT;
+   }
+   else if constexpr (std::is_same_v<T, long>) {
+      mem_type = H5T_NATIVE_LONG;
+   }
+
    // Create a dataset attribute
    hid_t attribute_id = H5Acreate2(dataset_id,
                                    attrName.c_str(),
-                                   H5T_NATIVE_INT64,
+                                   mem_type,
                                    dataspace_id,
                                    H5P_DEFAULT,
                                    H5P_DEFAULT);
 
    //write the dataset
-   herr_t status = H5Awrite(attribute_id,H5T_NATIVE_INT64,data);
+   herr_t status = H5Awrite(attribute_id,mem_type,data);
 
    H5Aclose(attribute_id);
    H5Sclose(dataspace_id);

@@ -69,7 +69,8 @@ typedef struct _Domain
    double ks,lambda0;
    OperationMode mode;
 
-   int numHarmony, *harmony;
+   int numHarmony;
+   std::vector<int> harmony;
    std::vector<std::vector<cplx>> Ux,Uy,ScUx,ScUy;
    std::vector<std::vector<cplx>> Ez;
    std::vector<std::vector<double>> totalEnergyX,totalEnergyY;

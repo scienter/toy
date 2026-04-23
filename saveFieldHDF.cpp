@@ -10,18 +10,18 @@
 #include "mesh.h"
 #include "constants.h"
 
-void saveIntMeta(const std::string& fileName,
+
+template<typename T>
+void saveMeta(const std::string& fileName,
                     const std::string& dataName,
-                    const int *data,
+                    T *data,
                     int dataCnt);
-void saveDoubleMeta(const std::string& fileName,
-                    const std::string& dataName,
-                    const double *data,
-                    int dataCnt);
+
+template<typename T>
 void save_attr_HDF(const std::string& fileName,
                    const std::string& dataName,
                    const std::string& attrName,
-                   const int64_t* data,
+                   T *data,
                    int dataCnt);
 
 void saveFieldComp(const std::vector<std::vector<cplx>> &data,
@@ -71,19 +71,19 @@ void saveFieldHDF(Domain *D,int iteration)
       double coef2 = coef*coef/(2.0*Z0)*area;
       double bucketZ = D->numSlice*D->lambda0;
 
-      saveIntMeta(fileName,"sliceN",&D->sliceN,1);
-      saveIntMeta(fileName,"harmony",D->harmony,D->numHarmony);
-      saveIntMeta(fileName,"numHarmony",&D->numHarmony,1);
-      saveIntMeta(fileName,"nx",&D->nx,1);
-      saveIntMeta(fileName,"ny",&D->ny,1);
-      saveDoubleMeta(fileName,"minZ",&D->minZ,1);
-      saveDoubleMeta(fileName,"dz",&D->dz,1);
-      saveDoubleMeta(fileName,"bucketZ",&bucketZ,1);
-      saveDoubleMeta(fileName,"fieldNorm",&coef2,1);
-      saveDoubleMeta(fileName,"dx",&D->dx,1);
-      saveDoubleMeta(fileName,"dy",&D->dy,1);
-      saveDoubleMeta(fileName,"minX",&D->minX,1);
-      saveDoubleMeta(fileName,"minY",&D->minY,1);
+      saveMeta(fileName,"sliceN",&D->sliceN,1);
+      saveMeta(fileName,"harmony",D->harmony.data(),D->numHarmony);
+      saveMeta(fileName,"numHarmony",&D->numHarmony,1);
+      saveMeta(fileName,"nx",&D->nx,1);
+      saveMeta(fileName,"ny",&D->ny,1);
+      saveMeta(fileName,"minZ",&D->minZ,1);
+      saveMeta(fileName,"dz",&D->dz,1);
+      saveMeta(fileName,"bucketZ",&bucketZ,1);
+      saveMeta(fileName,"fieldNorm",&coef2,1);
+      saveMeta(fileName,"dx",&D->dx,1);
+      saveMeta(fileName,"dy",&D->dy,1);
+      saveMeta(fileName,"minX",&D->minX,1);
+      saveMeta(fileName,"minY",&D->minY,1);
    }  
    MPI_Barrier(MPI_COMM_WORLD);
 

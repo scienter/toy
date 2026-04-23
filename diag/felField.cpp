@@ -17,6 +17,15 @@ void restoreMeta(T* data, int dataCnt,
                  const std::string& fileName,
                  const std::string& dataName);
 
+template<typename T>
+void restore_HDF(T* data,
+                          const std::string& fileName,
+                          const std::string& dataName,
+                          int totalCnt,
+                          int subCnt,
+                          int start,
+                          int N);
+
 int main(int argc, char *argv[])
 {
    if(argc < 4) {
@@ -50,12 +59,41 @@ int main(int argc, char *argv[])
       restoreMeta(&dy,             1, fileName, "dy");
       restoreMeta(&dz,             1, fileName, "dz");
       restoreMeta(&bucketZ,        1, fileName, "bucketZ");
+      restoreMeta(&nx,             1, fileName, "nx");
+      restoreMeta(&ny,             1, fileName, "ny");
 
-      for(int h; h<numHarmony; ++h) {
-          std::cout << "harmony=" << harmony[h] 
-                    << std::endl;
+      for(int h=0; h<numHarmony; ++h) {
 
+         std::vector<size_t> subCnt(division);
+         std::vector<size_t> startPos(division);
+         size_t subSlices = sliceN / division;
 
+         // distribution of particles
+         for (int i = 0; i < division - 1; ++i) {
+            subCnt[i] = subSlices;
+         }
+         subCnt[division - 1] = sliceN - subSlices * (division - 1);
+
+         //defining start index
+         startPos[0] = 0;
+         for (int n = 1; n < division; ++n) {
+            startPos[n] = startPos[n-1] + subCnt[n-1];
+         }
+
+         int numData = nx * ny * 2;
+         
+         std::string dataNameUx = "Ux" + std::to_string(harmony[h]);
+         std::string dataNameUy = "Uy" + std::to_string(harmony[h]);
+         for (int n = 0; n < division; ++n) {
+            std::vector<double> dataUx(subCnt[n] * numData);
+            std::vector<double> dataUy(subCnt[n] * numData);
+
+            restore_HDF(dataUx.data(), fileName, dataNameUx,
+                                 sliceN, subCnt[n], startPos[n], numData);
+            restore_HDF(dataUy.data(), fileName, dataNameUy,
+                                 sliceN, subCnt[n], startPos[n], numData);
+
+         }
       }
 
    }     //End of for(step)
@@ -380,7 +418,7 @@ void restoreMeta(T* data, int dataCnt,
 
 
 template<typename T>
-void restore_Particle_HDF(T* data,
+void restore_HDF(T* data,
                           const std::string& fileName,
                           const std::string& dataName,
                           int totalCnt,
