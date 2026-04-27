@@ -174,4 +174,5 @@ void saveFieldsToTxt(const Domain &D, const std::string& fileName);
 void saveParticlesToTxt(const Domain &D, int species, const std::string& fileName);
 void loadSeed(Domain *D,int iteration);
 void periodicParticles(Domain &D,int iteration);
+void restoreFieldHDF(Domain *D,int iteration);
 #endif   //MESH_H

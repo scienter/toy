@@ -1,11 +1,17 @@
+#include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <cstdlib>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 #include <type_traits>
+
+const std::complex<double> I(0.0,1.0);
+#define velocityC 299792458.0    // [m/s]
 
 template<typename T>
 void restore_attr_HDF(T* cnt,
@@ -40,13 +46,22 @@ int main(int argc, char *argv[])
 
    for(int step = initial; step <= finalStep; step += timeStep)
    {
+      // filename
       std::string fileName = "field" + std::to_string(step) + ".h5";
 
-      int numHarmony = 0;
+      // saveNames for power and crossF
+      std::string powerName = "power" + std::to_string(step);
+      std::ofstream outP(powerName);
+      std::string crossName = "crossP" + std::to_string(step);
+      std::ofstream outF(crossName);
+
+
+      size_t numHarmony = 0;
       int sliceN = 0;
-      int nx = 0, ny = 0;
+      size_t nx = 0, ny = 0;
       double minX = 0.0, minY = 0.0, minZ = 0.0;
       double dx = 0.0, dy = 0.0, dz = 0.0, bucketZ = 0.0;
+      double coefP = 0.0, coefI = 0.0;
 
       restoreMeta(&numHarmony, 1, fileName, "numHarmony");
       std::vector<size_t> harmony(numHarmony);
@@ -61,8 +76,40 @@ int main(int argc, char *argv[])
       restoreMeta(&bucketZ,        1, fileName, "bucketZ");
       restoreMeta(&nx,             1, fileName, "nx");
       restoreMeta(&ny,             1, fileName, "ny");
+      restoreMeta(&coefP,          1, fileName, "powerNorm");
+      restoreMeta(&coefI,          1, fileName, "intensityNorm");
 
-      for(int h=0; h<numHarmony; ++h) {
+      //============== initialize files ================
+      outP <<    "#z = " << step*dz << "[m]\n";
+      outP <<    "#s[m]         ";
+      for(size_t h=0; h<numHarmony; ++h) {
+         outP << "Px" << h+1 << "[W]" << "       "
+              << "Py" << h+1 << "[W]" << "       ";
+      }
+      outP << "\n";
+
+      outF <<    "#z = " << step*dz << "[m]\n";
+      outF <<    "# x[m]       y[m]         ";
+      for(size_t h=0; h<numHarmony; ++h) {
+         outF << "Ix" << h+1 << "[J/m^2]" << "  "
+              << "Iy" << h+1 << "[J/m^2]" << "  ";
+      }
+      outF << "\n";
+      //=================================================
+      
+
+      std::vector<std::vector<double>> crossFx(numHarmony);
+      std::vector<std::vector<double>> crossFy(numHarmony);
+      std::vector<std::vector<double>> powerX(numHarmony);
+      std::vector<std::vector<double>> powerY(numHarmony);
+      for(size_t h=0; h<numHarmony; ++h) {
+         crossFx[h].resize(nx*ny, 0.0);
+         crossFy[h].resize(nx*ny, 0.0);
+         powerX[h].resize(sliceN, 0.0);
+         powerY[h].resize(sliceN, 0.0);
+      }
+
+      for(size_t h=0; h<numHarmony; ++h) {
 
          std::vector<size_t> subCnt(division);
          std::vector<size_t> startPos(division);
@@ -93,8 +140,88 @@ int main(int argc, char *argv[])
             restore_HDF(dataUy.data(), fileName, dataNameUy,
                                  sliceN, subCnt[n], startPos[n], numData);
 
+            // cal power and intensity
+            for(size_t sliceI=0; sliceI<subCnt[n]; ++sliceI) {
+               double PX = 0.0;
+               double PY = 0.0;              
+               for(size_t i=0; i<nx; ++i)
+                  for(size_t j=0; j<ny; ++j) { 
+                     double tmpPX = std::norm(dataUx[sliceI*numData + (i*ny+j)*2 + 0]
+                                           +I*dataUx[sliceI*numData + (i*ny+j)*2 + 1]);
+                     double tmpPY = std::norm(dataUy[sliceI*numData + (i*ny+j)*2 + 0]
+                                           +I*dataUy[sliceI*numData + (i*ny+j)*2 + 1]);
+                     //PY += std::norm(dataUy[sliceI*numData + j*2 + 0]
+                     //          +I*dataUy[sliceI*numData + j*2 + 1]);
+                     PX += tmpPX;
+                     PY += tmpPY;
+                     crossFx[h][i*ny + j] += tmpPX*coefI;
+                     crossFy[h][i*ny + j] += tmpPY*coefI;
+                  }
+               
+               size_t idx = startPos[n] + sliceI;
+               powerX[h][idx]=PX*coefP;
+               powerY[h][idx]=PY*coefP;
+            }
+            std::cout << "At " << step << ", " << n+1 << "/" << division << std::endl;
          }
+
       }
+
+      // Save powerFile
+      for(int i=0; i<sliceN; ++i) {
+         double s = i*bucketZ;         
+         outP << std::setw(12) << s << " ";
+         for(size_t h=0; h<numHarmony; ++h) {
+            outP << std::setw(12) << powerX[h][i] << " ";  
+            outP << std::setw(12) << powerY[h][i] << " ";  
+         }
+         outP << "\n";
+      }
+      outP.close();
+      std::cout << powerName << " is made." << std::endl;
+
+      // Save intensityFile
+      for(size_t i=0; i<nx; ++i) {
+         double x = i*dx + minX;
+         for(size_t j=0; j<ny; ++j) { 
+            double y = j*dy + minY;
+            outF << std::setw(12) << x << " "
+                 << std::setw(12) << y << " ";
+            for(size_t h=0; h<numHarmony; ++h) {
+               outF << std::setw(12) << crossFx[h][i*ny + j] << " ";  
+               outF << std::setw(12) << crossFy[h][i*ny + j] << " ";  
+            }
+            outF << "\n";
+         }
+         outF << "\n";
+      }
+      outF.close();
+      std::cout << crossName << " is made." << std::endl;
+
+/*
+      // Energy test
+      std::cout << "step = " << step << ", from power" << std::endl;
+      for(size_t h=0; h<numHarmony; ++h) {
+         double sumX = 0.0, sumY = 0.0;
+         for(int i=0; i<sliceN; ++i) {
+            sumX += powerX[h][i];
+            sumY += powerY[h][i];
+         }
+         std::cout << "h = " << h << ", energyX = " << sumX * bucketZ/velocityC
+                   << ", energyY = " << sumY * bucketZ/velocityC << std::endl;
+      }
+      
+      std::cout << "step = " << step << ", from crossF" << std::endl;
+      for(size_t h=0; h<numHarmony; ++h) {
+         double sumX = 0.0, sumY = 0.0;
+         for(size_t i=0; i<nx*ny; ++i) {
+            sumX += crossFx[h][i];
+            sumY += crossFy[h][i];
+         }
+         std::cout << "h = " << h << ", energyX = " << sumX * dx*dy
+                   << ", energyY = " << sumY * dx*dy << std::endl;
+      }
+*/      
 
    }     //End of for(step)
 

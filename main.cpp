@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
    if(argc>=3) {
       iteration=atoi(argv[2]);
 
+      restoreFieldHDF(&D,iteration);
 
    } else {
       if(myrank==0) {
@@ -81,14 +82,9 @@ int main(int argc, char *argv[])
       }
 
    }
-
+/*
    while(iteration<D.maxStep) 
    {
-      // Updating wake_field
-      if(iteration%D.wakeFieldStep==0 && D.mode==OperationMode::Time_Dependent) {
-         updateWakeField(&D,iteration);
-      }
-
       if(iteration%D.saveStep==0 && iteration>=D.saveStart) {
          // calculation of running time
          auto end = std::chrono::high_resolution_clock::now();
@@ -110,10 +106,13 @@ int main(int argc, char *argv[])
             if(D.fieldSave==true)     
                saveFieldHDF(&D,iteration);
          }
-      
       }
- 
       
+      // Updating wake_field
+      if(iteration%D.wakeFieldStep==0 && D.mode==OperationMode::Time_Dependent) {
+         updateWakeField(&D,iteration);
+      }
+
       // Update Files
       updateTotalEnergy(&D,iteration);
       calculate_twiss(D,iteration);
@@ -156,7 +155,7 @@ int main(int argc, char *argv[])
    double minutes = elapsed.count() / 60.0;
    if(myrank==0) 
       std::cout << "Total running time =" << minutes << " m !!" << std::endl;
-
+*/
    MPI_Finalize();
 
    return 0;

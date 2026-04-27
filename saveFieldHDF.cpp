@@ -70,6 +70,7 @@ void saveFieldHDF(Domain *D,int iteration)
       double coef = eMass*velocityC*velocityC*D->ks/eCharge;
       double coef2 = coef*coef/(2.0*Z0)*area;
       double bucketZ = D->numSlice*D->lambda0;
+      double coef3 = coef*coef/(2.0*Z0)*bucketZ/velocityC;
 
       saveMeta(fileName,"sliceN",&D->sliceN,1);
       saveMeta(fileName,"harmony",D->harmony.data(),D->numHarmony);
@@ -79,7 +80,8 @@ void saveFieldHDF(Domain *D,int iteration)
       saveMeta(fileName,"minZ",&D->minZ,1);
       saveMeta(fileName,"dz",&D->dz,1);
       saveMeta(fileName,"bucketZ",&bucketZ,1);
-      saveMeta(fileName,"fieldNorm",&coef2,1);
+      saveMeta(fileName,"powerNorm",&coef2,1);
+      saveMeta(fileName,"intensityNorm",&coef3,1);
       saveMeta(fileName,"dx",&D->dx,1);
       saveMeta(fileName,"dy",&D->dy,1);
       saveMeta(fileName,"minX",&D->minX,1);

@@ -35,7 +35,7 @@ endif
 
 
 EXEC = show
-OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveFile.o twiss.o loadSeed.o rearrangeParticles.o wakeField.o saveParticleHDF.o saveFieldHDF.o fieldShareZ.o 
+OBJS = main.o findparam.o parameterSetting.o boundary.o loadBeam.o updateK_quadG.o particlePush.o solveField.o updateTotalEnergy.o saveFile.o twiss.o loadSeed.o rearrangeParticles.o wakeField.o saveParticleHDF.o saveFieldHDF.o fieldShareZ.o restoreFieldHDF.o
 
 ##selfseed.o loadSeed.o twiss.o wakeField.o chicane.o saveFile.o restoreDumpHDF.o
 
@@ -79,5 +79,25 @@ $(EXEC): $(OBJS)
 clean:
 	rm -f *.o $(EXEC) *.mod core *~
 
-.PHONY: all clean
+# ====================== Convenience Targets ======================
+.PHONY: all clean beam beam-clean home home-clean
+
+# make beam          → Beam Server용 빌드
+beam:
+	$(MAKE) BEAM=1
+
+# make beam-clean    → clean 후 Beam Server용 빌드 (가장 추천)
+beam-clean:
+	$(MAKE) BEAM=1 clean
+
+# make home          → Home PC용 빌드
+home:
+	$(MAKE) BEAM=0
+
+# make home-clean    → clean 후 Home PC용 빌드
+home-clean:
+	$(MAKE) BEAM=0 clean
+# ================================================================
+
+
 
