@@ -48,7 +48,8 @@ int main(int argc, char *argv[])
    if(argc>=3) {
       iteration=atoi(argv[2]);
 
-      restoreFieldHDF(&D,iteration);
+      //restoreFieldHDF(&D,iteration);
+      restoreParticleHDF(&D,iteration);
 
    } else {
       if(myrank==0) {
